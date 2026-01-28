@@ -6,12 +6,9 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
+        host: true, // Listen on all addresses including LAN and public
         port: 3000,
-        host: '0.0.0.0',
-        strictPort: false,
-        hmr: {
-          clientPort: 443, // For cloud deployments
-        },
+        strictPort: false, // Allow Vite to use another port if 3000 is taken
       },
       plugins: [react()],
       define: {
