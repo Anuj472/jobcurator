@@ -1,0 +1,5 @@
+{
+  "name": "Global Job Aggregator",
+  "description": "A comprehensive job board that aggregates postings from top tech companies worldwide via Greenhouse, Lever, and Ashby APIs, integrated with Supabase PostgreSQL.",
+  "requestFramePermissions": []
+}
