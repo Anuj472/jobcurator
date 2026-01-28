@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { Job, Company, AtsPlatform } from './types';
@@ -58,14 +57,18 @@ const App: React.FC = () => {
         }
         else setEnumFormat('none');
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('Schema detection error:', e);
+    }
   };
 
   const fetchSyncedLinks = async () => {
     try {
       const { data } = await supabase.from('jobs').select('apply_link');
       if (data) setSyncedApplyLinks(new Set(data.map(j => j.apply_link)));
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error fetching synced links:', e);
+    }
   };
 
   const fetchDbJobs = async () => {
@@ -73,7 +76,9 @@ const App: React.FC = () => {
     try {
       const { data } = await supabase.from('jobs').select('*, company:companies(*)').order('created_at', { ascending: false });
       if (data) setDbJobs(data as any[]);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error fetching database jobs:', e);
+    }
     setLoading(false);
   };
 
@@ -96,31 +101,60 @@ const App: React.FC = () => {
     }
   };
 
-  const getOrCreateCompanyId = async (companyName: string, identifier: string, platform: AtsPlatform): Promise<string | null> => {
+  /**
+   * 🔧 FIXED: Now matches your actual Supabase schema
+   * Only uses: name, slug, logo_url, website_url, description
+   */
+  const getOrCreateCompanyId = async (companyName: string, websiteUrl?: string): Promise<string | null> => {
     const slug = AtsService.generateSlug(companyName);
     
-    // 1. Prioritize looking up existing Palantir/etc UUIDs
-    const { data: existing } = await supabase
-      .from('companies')
-      .select('id')
-      .or(`slug.eq.${slug},name.eq.${companyName}`)
-      .maybeSingle();
+    try {
+      // 1. Check if company already exists by slug or name
+      const { data: existing, error: searchError } = await supabase
+        .from('companies')
+        .select('id')
+        .or(`slug.eq.${slug},name.eq.${companyName}`)
+        .maybeSingle();
 
-    if (existing) return existing.id;
+      if (searchError) {
+        console.error('Error searching for company:', searchError);
+      }
 
-    // 2. Only create if it doesn't exist
-    const { data: created, error } = await supabase
-      .from('companies')
-      .insert({ name: companyName, slug, ats_identifier: identifier, ats_platform: platform, active: true })
-      .select('id')
-      .single();
+      if (existing) {
+        return existing.id;
+      }
 
-    return created?.id || null;
+      // 2. Create new company with ONLY fields that exist in your schema
+      const { data: created, error: createError } = await supabase
+        .from('companies')
+        .insert({ 
+          name: companyName, 
+          slug: slug,
+          website_url: websiteUrl || null,
+          logo_url: null,
+          description: null
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error('Error creating company:', createError);
+        return null;
+      }
+
+      return created?.id || null;
+    } catch (err) {
+      console.error('Company creation failed:', err);
+      return null;
+    }
   };
 
   const pushAllToDatabase = async () => {
     const unSynced = discoveredJobs.filter(j => j.apply_link && !syncedApplyLinks.has(j.apply_link));
-    if (unSynced.length === 0) return;
+    if (unSynced.length === 0) {
+      setStatus('No new jobs to sync');
+      return;
+    }
 
     setPushingAll(true);
     setSyncProgress({
@@ -146,42 +180,64 @@ const App: React.FC = () => {
       setSyncProgress(prev => prev ? { ...prev, currentCompany: cName } : null);
 
       try {
+        // Get or create company with proper schema
         const companyId = await getOrCreateCompanyId(
-          cName, 
-          jobs[0].company?.ats_identifier || AtsService.generateSlug(cName),
-          jobs[0].company?.ats_platform || AtsPlatform.GREENHOUSE
+          cName,
+          jobs[0].company?.website_url
         );
 
-        if (companyId) {
-          // Payload cleaned of external_id to avoid schema cache errors
-          const payload = jobs.map(j => ({
-            company_id: companyId,
-            title: j.title,
-            location_city: j.location_city,
-            job_type: getTargetJobType(j.job_type),
-            apply_link: j.apply_link,
-            description: j.description || '',
-            is_active: true
-          }));
-
-          const { error } = await supabase.from('jobs').upsert(payload, { onConflict: 'apply_link' });
-          
-          if (error) throw error;
-
-          setSyncProgress(prev => {
-            if (!prev) return null;
-            const stats = { ...(prev.companyStats[cName] || { name: cName, found: 0, synced: 0, failed: 0 }) };
-            stats.found += jobs.length;
-            stats.synced += jobs.length;
-            return {
-              ...prev,
-              processedCount: prev.processedCount + jobs.length,
-              successCount: prev.successCount + jobs.length,
-              companyStats: { ...prev.companyStats, [cName]: stats }
-            };
-          });
+        if (!companyId) {
+          throw new Error(`Failed to get/create company ID for ${cName}`);
         }
+
+        // 🔧 FIXED: Removed external_id and other non-existent fields
+        const payload = jobs.map(j => ({
+          company_id: companyId,
+          title: j.title || 'Untitled Position',
+          category: j.category || null,
+          location_city: j.location_city || null,
+          location_country: j.location_country || null,
+          salary_range: j.salary_range || null,
+          job_type: getTargetJobType(j.job_type),
+          apply_link: j.apply_link!,
+          description: j.description || null,
+          requirements: j.requirements || null,
+          responsibilities: j.responsibilities || null,
+          benefits: j.benefits || null,
+          is_active: true
+        }));
+
+        const { error, data } = await supabase
+          .from('jobs')
+          .upsert(payload, { 
+            onConflict: 'apply_link',
+            ignoreDuplicates: false 
+          })
+          .select();
+        
+        if (error) {
+          console.error(`Error syncing jobs for ${cName}:`, error);
+          throw error;
+        }
+
+        // Update sync progress on success
+        setSyncProgress(prev => {
+          if (!prev) return null;
+          const stats = { ...(prev.companyStats[cName] || { name: cName, found: 0, synced: 0, failed: 0 }) };
+          stats.found += jobs.length;
+          stats.synced += jobs.length;
+          return {
+            ...prev,
+            processedCount: prev.processedCount + jobs.length,
+            successCount: prev.successCount + jobs.length,
+            companyStats: { ...prev.companyStats, [cName]: stats }
+          };
+        });
+
       } catch (err: any) {
+        console.error(`Failed to sync company ${cName}:`, err);
+        
+        // Update sync progress on failure
         setSyncProgress(prev => {
           if (!prev) return null;
           const stats = { ...(prev.companyStats[cName] || { name: cName, found: 0, synced: 0, failed: 0 }) };
@@ -198,9 +254,9 @@ const App: React.FC = () => {
     }
 
     setPushingAll(false);
-    fetchSyncedLinks();
-    if (activeTab === 'database') fetchDbJobs();
-    setStatus("Sync completed. Schema errors bypassed.");
+    await fetchSyncedLinks();
+    if (activeTab === 'database') await fetchDbJobs();
+    setStatus("Sync completed successfully!");
   };
 
   const runSmartDiscovery = async () => {
@@ -234,22 +290,48 @@ const App: React.FC = () => {
 
       const autoCompanies = Array.from(companyMap.values()).slice(0, 50); 
       let allFound: Partial<Job>[] = [];
+      
       for (let i = 0; i < autoCompanies.length; i++) {
         const item = autoCompanies[i];
         setProgress(Math.round(5 + ((i + 1) / autoCompanies.length) * 95));
+        setStatus(`Scanning ${item.name}...`);
+        
         try {
           let raw: any[] = [];
-          if (item.platform === AtsPlatform.GREENHOUSE) raw = await AtsService.fetchGreenhouseJobs(item.identifier);
-          else if (item.platform === AtsPlatform.LEVER) raw = await AtsService.fetchLeverJobs(item.identifier);
+          if (item.platform === AtsPlatform.GREENHOUSE) {
+            raw = await AtsService.fetchGreenhouseJobs(item.identifier);
+          } else if (item.platform === AtsPlatform.LEVER) {
+            raw = await AtsService.fetchLeverJobs(item.identifier);
+          }
+          
           allFound.push(...raw.map(j => ({ 
-            ...(item.platform === AtsPlatform.GREENHOUSE ? AtsService.normalizeGreenhouse(j, '') : AtsService.normalizeLever(j, '')),
-            company: { id: '', ...item, active: true, slug: AtsService.generateSlug(item.name) } 
+            ...(item.platform === AtsPlatform.GREENHOUSE 
+              ? AtsService.normalizeGreenhouse(j, '') 
+              : AtsService.normalizeLever(j, '')),
+            company: { 
+              id: '', 
+              name: item.name,
+              slug: AtsService.generateSlug(item.name),
+              ats_platform: item.platform,
+              ats_identifier: item.identifier,
+              active: true
+            } as Company
           } as Partial<Job>)));
-        } catch (e) {}
+          
+        } catch (e) {
+          console.error(`Failed to fetch jobs for ${item.name}:`, e);
+        }
+        
         if (i % 5 === 0) setDiscoveredJobs([...allFound]);
       }
+      
       setDiscoveredJobs(allFound);
-    } catch (e: any) {} finally {
+      setStatus(`Found ${allFound.length} jobs from ${autoCompanies.length} companies`);
+      
+    } catch (e: any) {
+      console.error('Discovery error:', e);
+      setStatus('Discovery failed. Please try again.');
+    } finally {
       setLoading(false);
       setProgress(100);
     }
