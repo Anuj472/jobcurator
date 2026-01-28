@@ -82,7 +82,31 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
-  const getTargetJobType = (original: string | undefined): string => {
+  /**
+   * 🔧 FIXED: Maps to your actual Supabase enum values
+   * Your job_category enum: 'management', 'it', 'research-development'
+   */
+  const getTargetJobCategory = (title?: string, description?: string): string {
+    const text = `${title || ''} ${description || ''}`.toLowerCase();
+    
+    // Check for research & development keywords
+    if (text.includes('research') || text.includes('r&d') || text.includes('scientist') || 
+        text.includes('phd') || text.includes('lab') || text.includes('innovation')) {
+      return 'research-development';
+    }
+    
+    // Check for management keywords
+    if (text.includes('manager') || text.includes('director') || text.includes('lead') || 
+        text.includes('head of') || text.includes('chief') || text.includes('vp') || 
+        text.includes('president') || text.includes('executive')) {
+      return 'management';
+    }
+    
+    // Default to IT (most common for tech jobs)
+    return 'it';
+  };
+
+  const getTargetJobType = (original: string | undefined): string {
     if (enumFormat === 'custom') return customEnumVal;
     if (!original) return 'Full Time';
     const clean = original.toLowerCase();
@@ -190,11 +214,11 @@ const App: React.FC = () => {
           throw new Error(`Failed to get/create company ID for ${cName}`);
         }
 
-        // 🔧 FIXED: Removed external_id and other non-existent fields
+        // 🔧 FIXED: Use intelligent category mapping based on job title/description
         const payload = jobs.map(j => ({
           company_id: companyId,
           title: j.title || 'Untitled Position',
-          category: j.category || null,
+          category: getTargetJobCategory(j.title, j.description), // ✅ Now maps to: management, it, research-development
           location_city: j.location_city || null,
           location_country: j.location_country || null,
           salary_range: j.salary_range || null,
