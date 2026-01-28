@@ -8,7 +8,10 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
-        allowedHosts: 'all', // Fix: Allow all hosts including cloud deployment domains
+        strictPort: false,
+        hmr: {
+          clientPort: 443, // For cloud deployments
+        },
       },
       plugins: [react()],
       define: {
