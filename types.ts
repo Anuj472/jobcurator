@@ -5,6 +5,9 @@ export enum AtsPlatform {
   ASHBY = 'ashby'
 }
 
+export type JobCategory = 'management' | 'it' | 'research-development';
+export type JobType = 'Remote' | 'On-site' | 'Hybrid';
+
 export interface Company {
   id: string;
   name: string;
@@ -12,24 +15,25 @@ export interface Company {
   logo_url?: string;
   website_url?: string;
   description?: string;
-  ats_platform: AtsPlatform; // Meta-field for fetching
-  ats_identifier: string;    // Meta-field for fetching
-  active: boolean;           // Added to support filtering and sync status
-  last_sync_at?: string;     // Added to support sync tracking
   created_at?: string;
   updated_at?: string;
+  // Metadata for the UI/Scraper
+  ats_platform?: AtsPlatform;
+  ats_identifier?: string;
+  // Fix: Adding properties used in SyncManager and database schema
+  active?: boolean;
+  last_sync_at?: string;
 }
 
 export interface Job {
   id: string;
   company_id: string;
-  external_id: string; // Crucial for deduplication (add this to your schema!)
   title: string;
-  category?: string;
+  category: JobCategory;
   location_city?: string;
   location_country?: string;
   salary_range?: string;
-  job_type: string;
+  job_type: JobType;
   apply_link: string;
   description?: string;
   requirements?: string;

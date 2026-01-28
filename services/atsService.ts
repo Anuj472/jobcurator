@@ -10,7 +10,6 @@ export class AtsService {
   ];
 
   static async safeFetch(url: string, proxyIndex = -1): Promise<any> {
-    // Try primary direct fetch first (works for raw.githubusercontent)
     if (proxyIndex === -1) {
         try {
             const res = await fetch(url);
@@ -18,16 +17,12 @@ export class AtsService {
         } catch (e) {}
         return this.safeFetch(url, 0);
     }
-
     if (proxyIndex >= this.PROXIES.length) return null;
-
     let fetchUrl = `${this.PROXIES[proxyIndex]}${encodeURIComponent(url)}`;
-    
     try {
       const response = await fetch(fetchUrl);
       if (!response.ok) throw new Error('Proxy Fail');
       const text = await response.text();
-      
       if (this.PROXIES[proxyIndex].includes('allorigins.win')) {
         const wrapper = JSON.parse(text);
         return typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
@@ -56,13 +51,12 @@ export class AtsService {
   static normalizeGreenhouse(job: any, companyId: string): Partial<Job> {
     return {
       company_id: companyId,
-      external_id: job.id?.toString(),
       title: job.title,
       location_city: job.location?.name?.split(',')[0]?.trim() || 'Remote',
       category: job.departments?.[0]?.name || 'Engineering',
       apply_link: job.absolute_url,
       description: job.content || '',
-      job_type: job.metadata?.find((m: any) => m.name === 'Employment Type')?.value || 'Full Time',
+      job_type: job.metadata?.find((m: any) => m.name === 'Employment Type')?.value || 'full_time',
       is_active: true
     };
   }
@@ -70,13 +64,12 @@ export class AtsService {
   static normalizeLever(job: any, companyId: string): Partial<Job> {
     return {
       company_id: companyId,
-      external_id: job.id,
       title: job.text,
       location_city: job.categories?.location || 'Remote',
       category: job.categories?.team || 'Engineering',
       apply_link: job.hostedUrl || job.applyUrl,
       description: job.description || '',
-      job_type: job.categories?.commitment || 'Full Time',
+      job_type: job.categories?.commitment || 'full_time',
       is_active: true
     };
   }
@@ -84,13 +77,12 @@ export class AtsService {
   static normalizeAshby(job: any, companyId: string): Partial<Job> {
     return {
       company_id: companyId,
-      external_id: job.id,
       title: job.title,
       location_city: job.location || 'Remote',
       category: job.department || 'Engineering',
       apply_link: job.jobUrl,
       description: job.descriptionHtml || job.description || '',
-      job_type: job.employmentType || 'Full Time',
+      job_type: job.employmentType || 'full_time',
       is_active: true
     };
   }
