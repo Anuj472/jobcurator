@@ -6,9 +6,17 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        host: true, // Listen on all addresses including LAN and public
+        host: true,
         port: 3000,
-        strictPort: false, // Allow Vite to use another port if 3000 is taken
+        strictPort: false,
+        allowedHosts: [
+          '.cloudspaces.litng.ai',
+          '.lightning.ai',
+          'localhost',
+          '.localhost',
+          '127.0.0.1',
+          '::1'
+        ],
       },
       plugins: [react()],
       define: {
