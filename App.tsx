@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { Job, Company, AtsPlatform, JobCategory, JobType } from './types';
@@ -58,12 +57,54 @@ const App: React.FC = () => {
 
   const mapToJobCategory = (rawDept: string | undefined, title: string | undefined): JobCategory => {
     const combined = `${rawDept || ''} ${title || ''}`.toLowerCase();
-    if (combined.includes('research') || combined.includes('science') || combined.includes('r&d') || combined.includes('algorithm') || combined.includes('scientist') || combined.includes('lab')) {
+    
+    // Sales detection
+    if (combined.includes('sales') || combined.includes('account executive') || 
+        combined.includes('business development') || combined.includes('revenue') ||
+        combined.includes('account manager') || combined.includes('bd ')) {
+      return 'sales';
+    }
+    
+    // Marketing detection
+    if (combined.includes('marketing') || combined.includes('brand') || 
+        combined.includes('growth') || combined.includes('content') || 
+        combined.includes('seo') || combined.includes('digital marketing') ||
+        combined.includes('campaign') || combined.includes('social media')) {
+      return 'marketing';
+    }
+    
+    // Finance detection
+    if (combined.includes('finance') || combined.includes('accounting') || 
+        combined.includes('controller') || combined.includes('financial') || 
+        combined.includes('treasurer') || combined.includes('audit') ||
+        combined.includes('analyst') && combined.includes('financial')) {
+      return 'finance';
+    }
+    
+    // Legal detection
+    if (combined.includes('legal') || combined.includes('attorney') || 
+        combined.includes('counsel') || combined.includes('compliance') || 
+        combined.includes('lawyer') || combined.includes('paralegal') ||
+        combined.includes('regulatory')) {
+      return 'legal';
+    }
+    
+    // Research & Development
+    if (combined.includes('research') || combined.includes('science') || 
+        combined.includes('r&d') || combined.includes('algorithm') || 
+        combined.includes('scientist') || combined.includes('lab')) {
       return 'research-development';
     }
-    if (combined.includes('manager') || combined.includes('lead') || combined.includes('head') || combined.includes('director') || combined.includes('ops') || combined.includes('management') || combined.includes('executive')) {
+    
+    // Management
+    if (combined.includes('manager') || combined.includes('lead') || 
+        combined.includes('head') || combined.includes('director') || 
+        combined.includes('ops') || combined.includes('management') || 
+        combined.includes('executive') || combined.includes('vp') ||
+        combined.includes('chief')) {
       return 'management';
     }
+    
     return 'it';
   };
 
@@ -74,16 +115,74 @@ const App: React.FC = () => {
     return 'On-site';
   };
 
-  const getOrCreateCompanyId = async (companyName: string): Promise<string | null> => {
-    const slug = AtsService.generateSlug(companyName);
-    const { data: existing } = await supabase.from('companies').select('id').or(`slug.eq.${slug},name.ilike.${companyName}`).maybeSingle();
-    if (existing) return existing.id;
+  const getOrCreateCompanyId = async (
+    companyName: string, 
+    atsPlatform?: AtsPlatform, 
+    atsIdentifier?: string
+  ): Promise<{ id: string | null; wasCreated: boolean; error?: string }> => {
+    try {
+      const slug = AtsService.generateSlug(companyName);
+      
+      // First: Try exact slug match
+      let { data: existing } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+      
+      // Second: Try case-insensitive name match if slug didn't work
+      if (!existing) {
+        const { data: nameMatch } = await supabase
+          .from('companies')
+          .select('id')
+          .ilike('name', companyName)
+          .maybeSingle();
+        existing = nameMatch;
+      }
+      
+      // Third: Try ATS identifier match if provided
+      if (!existing && atsIdentifier && atsPlatform) {
+        const { data: atsMatch } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('ats_platform', atsPlatform)
+          .eq('ats_identifier', atsIdentifier)
+          .maybeSingle();
+        existing = atsMatch;
+      }
+      
+      if (existing) {
+        return { id: existing.id, wasCreated: false };
+      }
 
-    const { data: created, error } = await supabase.from('companies').insert({ 
-      name: companyName, slug, logo_url: `https://logo.clearbit.com/${slug}.com`, website_url: `https://www.${slug}.com`
-    }).select('id').single();
-    if (error) return null;
-    return created?.id || null;
+      // Create new company with enhanced metadata
+      const { data: created, error } = await supabase
+        .from('companies')
+        .insert({ 
+          name: companyName,
+          slug,
+          logo_url: `https://logo.clearbit.com/${slug}.com`,
+          website_url: `https://www.${slug}.com`,
+          auto_created: true,
+          ats_platform: atsPlatform,
+          ats_identifier: atsIdentifier,
+          verified: false
+        })
+        .select('id')
+        .single();
+      
+      if (error) {
+        console.error(`❌ Company creation failed for ${companyName}:`, error);
+        return { id: null, wasCreated: false, error: error.message };
+      }
+      
+      console.log(`✅ Auto-created company: ${companyName} (${created.id})`);
+      return { id: created?.id || null, wasCreated: true };
+      
+    } catch (err: any) {
+      console.error(`❌ Exception in getOrCreateCompanyId for ${companyName}:`, err);
+      return { id: null, wasCreated: false, error: err.message };
+    }
   };
 
   const runMassiveHarvest = async () => {
@@ -154,21 +253,39 @@ const App: React.FC = () => {
       return acc;
     }, {} as Record<string, Partial<Job>[]>);
 
+    let companiesCreated = 0;
+    let companiesFailed: string[] = [];
+
     for (const companyName of Object.keys(groups)) {
       const jobsInGroup = groups[companyName];
       setSyncProgress(prev => prev ? { ...prev, currentCompany: companyName } : null);
 
       try {
-        const companyId = await getOrCreateCompanyId(companyName);
-        if (!companyId) throw new Error("FK Resolution Error");
+        // Get company info from INITIAL_COMPANIES
+        const company = INITIAL_COMPANIES.find(c => c.name === companyName);
+        
+        const result = await getOrCreateCompanyId(
+          companyName,
+          company?.platform,
+          company?.identifier
+        );
+        
+        if (!result.id) {
+          throw new Error(result.error || "Company ID resolution failed");
+        }
+        
+        if (result.wasCreated) {
+          companiesCreated++;
+          console.log(`📝 New company auto-created: ${companyName}`);
+        }
 
         const payload = jobsInGroup.map(j => ({
-          company_id: companyId,
+          company_id: result.id!,
           title: j.title,
-          category: j.category, // Already normalized during harvest
+          category: j.category,
           location_city: j.location_city || 'Remote',
-          location_country: 'United States',
-          job_type: j.job_type, // Already normalized during harvest
+          location_country: j.location_country || 'United States',
+          job_type: j.job_type,
           apply_link: j.apply_link,
           description: j.description || '',
           is_active: true
@@ -179,7 +296,13 @@ const App: React.FC = () => {
 
         setSyncProgress(prev => {
           if (!prev) return null;
-          const stat = prev.companyStats[companyName] || { name: companyName, uuid: companyId, found: 0, synced: 0, failed: 0 };
+          const stat = prev.companyStats[companyName] || { 
+            name: companyName, 
+            uuid: result.id!, 
+            found: jobsInGroup.length, 
+            synced: 0, 
+            failed: 0 
+          };
           stat.synced += jobsInGroup.length;
           return {
             ...prev,
@@ -189,12 +312,27 @@ const App: React.FC = () => {
           };
         });
       } catch (err: any) {
+        companiesFailed.push(companyName);
+        console.error(`❌ Failed to sync ${companyName}:`, err.message);
+        
         setSyncProgress(prev => {
           if (!prev) return null;
-          return { ...prev, processedCount: prev.processedCount + jobsInGroup.length, errorCount: prev.errorCount + jobsInGroup.length };
+          return { 
+            ...prev, 
+            processedCount: prev.processedCount + jobsInGroup.length, 
+            errorCount: prev.errorCount + jobsInGroup.length 
+          };
         });
       }
     }
+
+    // Final summary
+    console.log(`
+      🎯 Sync Summary:
+      - Companies auto-created: ${companiesCreated}
+      - Companies failed: ${companiesFailed.length}
+      ${companiesFailed.length > 0 ? `- Failed companies: ${companiesFailed.join(', ')}` : ''}
+    `);
 
     setPushingAll(false);
     fetchSyncedLinks();
