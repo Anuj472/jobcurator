@@ -1,5 +1,5 @@
-
 import { AtsPlatform, Job } from '../types';
+import { LocationService } from './locationService';
 
 export class AtsService {
   private static PROXIES = [
@@ -49,10 +49,15 @@ export class AtsService {
   }
 
   static normalizeGreenhouse(job: any, companyId: string): Partial<Job> {
+    // Parse location using LocationService
+    const locationStr = job.location?.name || 'Remote';
+    const parsedLocation = LocationService.parseLocation(locationStr);
+    
     return {
       company_id: companyId,
       title: job.title,
-      location_city: job.location?.name?.split(',')[0]?.trim() || 'Remote',
+      location_city: parsedLocation.city,
+      location_country: parsedLocation.country,
       category: job.departments?.[0]?.name || 'Engineering',
       apply_link: job.absolute_url,
       description: job.content || '',
@@ -62,10 +67,15 @@ export class AtsService {
   }
 
   static normalizeLever(job: any, companyId: string): Partial<Job> {
+    // Parse location using LocationService
+    const locationStr = job.categories?.location || job.location || 'Remote';
+    const parsedLocation = LocationService.parseLocation(locationStr);
+    
     return {
       company_id: companyId,
       title: job.text,
-      location_city: job.categories?.location || 'Remote',
+      location_city: parsedLocation.city,
+      location_country: parsedLocation.country,
       category: job.categories?.team || 'Engineering',
       apply_link: job.hostedUrl || job.applyUrl,
       description: job.description || '',
@@ -75,10 +85,15 @@ export class AtsService {
   }
 
   static normalizeAshby(job: any, companyId: string): Partial<Job> {
+    // Parse location using LocationService
+    const locationStr = job.location || job.locationName || 'Remote';
+    const parsedLocation = LocationService.parseLocation(locationStr);
+    
     return {
       company_id: companyId,
       title: job.title,
-      location_city: job.location || 'Remote',
+      location_city: parsedLocation.city,
+      location_country: parsedLocation.country,
       category: job.department || 'Engineering',
       apply_link: job.jobUrl,
       description: job.descriptionHtml || job.description || '',
