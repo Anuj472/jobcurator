@@ -1,11 +1,10 @@
-
 export enum AtsPlatform {
   GREENHOUSE = 'greenhouse',
   LEVER = 'lever',
   ASHBY = 'ashby'
 }
 
-export type JobCategory = 'management' | 'it' | 'research-development';
+export type JobCategory = 'management' | 'it' | 'research-development' | 'sales' | 'marketing' | 'finance' | 'legal';
 export type JobType = 'Remote' | 'On-site' | 'Hybrid';
 
 export interface Company {
@@ -20,7 +19,9 @@ export interface Company {
   // Metadata for the UI/Scraper
   ats_platform?: AtsPlatform;
   ats_identifier?: string;
-  // Fix: Adding properties used in SyncManager and database schema
+  // Enhanced tracking fields
+  auto_created?: boolean;  // Track if created automatically
+  verified?: boolean;  // Manual verification flag
   active?: boolean;
   last_sync_at?: string;
 }
