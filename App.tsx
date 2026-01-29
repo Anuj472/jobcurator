@@ -58,53 +58,99 @@ const App: React.FC = () => {
   const mapToJobCategory = (rawDept: string | undefined, title: string | undefined): JobCategory => {
     const combined = `${rawDept || ''} ${title || ''}`.toLowerCase();
     
-    // Sales detection
-    if (combined.includes('sales') || combined.includes('account executive') || 
-        combined.includes('business development') || combined.includes('revenue') ||
-        combined.includes('account manager') || combined.includes('bd ')) {
+    // ===== SALES =====
+    const salesKeywords = [
+      'sales', 'account executive', 'ae ', 'business development', 'bdr', 'sdr',
+      'revenue', 'account manager', 'am ', 'customer success', 'cs ',
+      'partnerships', 'partner', 'commercial', 'inside sales', 'outside sales',
+      'enterprise sales', 'field sales', 'sales ops', 'sales operations',
+      'sales enablement', 'go-to-market', 'gtm', 'customer acquisition'
+    ];
+    if (salesKeywords.some(kw => combined.includes(kw))) {
       return 'sales';
     }
     
-    // Marketing detection
-    if (combined.includes('marketing') || combined.includes('brand') || 
-        combined.includes('growth') || combined.includes('content') || 
-        combined.includes('seo') || combined.includes('digital marketing') ||
-        combined.includes('campaign') || combined.includes('social media')) {
+    // ===== MARKETING =====
+    const marketingKeywords = [
+      'marketing', 'brand', 'growth', 'content', 'seo', 'sem', 'ppc',
+      'digital marketing', 'campaign', 'social media', 'community',
+      'creative', 'copywriter', 'copywriting', 'demand generation',
+      'product marketing', 'marketing ops', 'marketing operations',
+      'events', 'pr ', 'public relations', 'communications', 'comms',
+      'influencer', 'paid media', 'performance marketing', 'growth marketing',
+      'email marketing', 'marketing analyst', 'marketing manager'
+    ];
+    if (marketingKeywords.some(kw => combined.includes(kw))) {
       return 'marketing';
     }
     
-    // Finance detection
-    if (combined.includes('finance') || combined.includes('accounting') || 
-        combined.includes('controller') || combined.includes('financial') || 
-        combined.includes('treasurer') || combined.includes('audit') ||
-        combined.includes('analyst') && combined.includes('financial')) {
+    // ===== FINANCE =====
+    const financeKeywords = [
+      'finance', 'accounting', 'controller', 'financial', 'treasurer',
+      'audit', 'fp&a', 'financial planning', 'cfo', 'accountant',
+      'tax', 'payroll', 'accounts payable', 'accounts receivable',
+      'billing', 'invoicing', 'budgeting', 'forecasting',
+      'financial analyst', 'investment', 'equity', 'venture',
+      'capital', 'fundraising', 'investor relations'
+    ];
+    if (financeKeywords.some(kw => combined.includes(kw))) {
       return 'finance';
     }
     
-    // Legal detection
-    if (combined.includes('legal') || combined.includes('attorney') || 
-        combined.includes('counsel') || combined.includes('compliance') || 
-        combined.includes('lawyer') || combined.includes('paralegal') ||
-        combined.includes('regulatory')) {
+    // ===== LEGAL =====
+    const legalKeywords = [
+      'legal', 'attorney', 'counsel', 'compliance', 'lawyer',
+      'paralegal', 'regulatory', 'contracts', 'litigation',
+      'intellectual property', 'ip ', 'privacy', 'gdpr', 'data protection',
+      'legal ops', 'legal operations', 'general counsel', 'gc ',
+      'risk', 'policy', 'governance'
+    ];
+    if (legalKeywords.some(kw => combined.includes(kw))) {
       return 'legal';
     }
     
-    // Research & Development
-    if (combined.includes('research') || combined.includes('science') || 
-        combined.includes('r&d') || combined.includes('algorithm') || 
-        combined.includes('scientist') || combined.includes('lab')) {
+    // ===== RESEARCH & DEVELOPMENT =====
+    const researchKeywords = [
+      'research', 'scientist', 'science', 'r&d', 'algorithm',
+      'lab', 'phd', 'postdoc', 'researcher', 'ml researcher',
+      'ai researcher', 'data scientist', 'applied scientist'
+    ];
+    if (researchKeywords.some(kw => combined.includes(kw))) {
       return 'research-development';
     }
     
-    // Management
-    if (combined.includes('manager') || combined.includes('lead') || 
-        combined.includes('head') || combined.includes('director') || 
-        combined.includes('ops') || combined.includes('management') || 
-        combined.includes('executive') || combined.includes('vp') ||
-        combined.includes('chief')) {
+    // ===== MANAGEMENT & OPERATIONS =====
+    const managementKeywords = [
+      'ceo', 'cto', 'coo', 'cmo', 'chief', 'vp ', 'vice president',
+      'president', 'director of', 'head of', 'general manager', 'gm '
+    ];
+    if (managementKeywords.some(kw => combined.includes(kw))) {
       return 'management';
     }
     
+    // ===== HUMAN RESOURCES =====
+    const hrKeywords = [
+      'hr ', 'human resources', 'recruiter', 'recruitment', 'talent',
+      'people ops', 'people operations', 'employee relations',
+      'compensation', 'benefits', 'hrbp', 'hr partner'
+    ];
+    if (hrKeywords.some(kw => combined.includes(kw))) {
+      return 'management'; // HR goes under management
+    }
+    
+    // ===== IT (Default for tech jobs) =====
+    const itKeywords = [
+      'engineer', 'developer', 'software', 'frontend', 'backend', 'fullstack',
+      'devops', 'sre', 'data engineer', 'ml engineer', 'ai engineer',
+      'architect', 'technical', 'programming', 'coding', 'infrastructure',
+      'cloud', 'security engineer', 'qa ', 'quality assurance', 'test',
+      'mobile', 'ios', 'android', 'web', 'api', 'database', 'system'
+    ];
+    if (itKeywords.some(kw => combined.includes(kw))) {
+      return 'it';
+    }
+    
+    // Default to IT if no match (most companies on our list are tech)
     return 'it';
   };
 
@@ -193,6 +239,7 @@ const App: React.FC = () => {
 
     let allFound: Partial<Job>[] = [];
     const total = INITIAL_COMPANIES.length;
+    let categoryCounts = { it: 0, sales: 0, marketing: 0, finance: 0, legal: 0, management: 0, 'research-development': 0 };
 
     for (let i = 0; i < total; i++) {
       const company = INITIAL_COMPANIES[i];
@@ -211,10 +258,13 @@ const App: React.FC = () => {
           else if (company.platform === AtsPlatform.LEVER) norm = AtsService.normalizeLever(j, '');
           else norm = AtsService.normalizeAshby(j, '');
 
+          const category = mapToJobCategory(norm.category, norm.title);
+          categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+
           return {
             ...norm,
             company: { name: company.name, slug: AtsService.generateSlug(company.name) } as any,
-            category: mapToJobCategory(norm.category, norm.title),
+            category,
             job_type: mapToJobType(norm.location_city, norm.title)
           };
         });
@@ -229,7 +279,8 @@ const App: React.FC = () => {
     setDiscoveredJobs(allFound);
     setLoading(false);
     setProgress(100);
-    setStatus(`Harvest complete! Found ${allFound.length} roles.`);
+    console.log('📊 Category Distribution:', categoryCounts);
+    setStatus(`Harvest complete! Found ${allFound.length} roles (IT: ${categoryCounts.it}, Sales: ${categoryCounts.sales}, Marketing: ${categoryCounts.marketing}, Finance: ${categoryCounts.finance}, Legal: ${categoryCounts.legal})`);
   };
 
   const pushToDatabase = async () => {
@@ -345,7 +396,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <h1 className="text-xl font-black tracking-tighter text-slate-900 uppercase">
-              TECH<span className="text-indigo-600">HARVESTER</span>
+              JOB<span className="text-indigo-600">CURATOR</span>
             </h1>
             <div className="flex bg-slate-100 p-1 rounded-xl">
               <button onClick={() => setActiveTab('discovery')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${activeTab === 'discovery' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>HARVESTER</button>
@@ -411,7 +462,7 @@ const App: React.FC = () => {
         {discoveredJobs.length === 0 && !loading && activeTab === 'discovery' && (
           <div className="py-48 text-center bg-white rounded-[3rem] border-4 border-dashed border-slate-200">
             <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Engine Standby</h3>
-            <p className="text-slate-400 mt-4 text-[10px] font-black uppercase tracking-widest">Launch harvest to scan 70+ tech giants.</p>
+            <p className="text-slate-400 mt-4 text-[10px] font-black uppercase tracking-widest">Launch harvest to scan 100+ companies across all sectors.</p>
           </div>
         )}
       </main>
