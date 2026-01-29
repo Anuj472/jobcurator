@@ -1,7 +1,7 @@
-
 import { AtsPlatform } from './types';
 
 export const INITIAL_COMPANIES = [
+  // ========== TECH COMPANIES (IT + All Departments) ==========
   // GREENHOUSE - BIG TECH & HIGH GROWTH
   { name: "Airbnb", identifier: "airbnb", platform: AtsPlatform.GREENHOUSE },
   { name: "Uber", identifier: "uber", platform: AtsPlatform.GREENHOUSE },
@@ -39,7 +39,17 @@ export const INITIAL_COMPANIES = [
   { name: "ClickUp", identifier: "clickup", platform: AtsPlatform.GREENHOUSE },
   { name: "Postman", identifier: "postman", platform: AtsPlatform.GREENHOUSE },
 
-  // GREENHOUSE - INDIAN UNICORNS
+  // ========== FINANCE & FINTECH (Finance, Compliance, Legal) ==========
+  { name: "Ramp", identifier: "ramp", platform: AtsPlatform.GREENHOUSE },
+  { name: "Mercury", identifier: "mercury", platform: AtsPlatform.GREENHOUSE },
+  { name: "Chime", identifier: "chime", platform: AtsPlatform.GREENHOUSE },
+  { name: "Affirm", identifier: "affirm", platform: AtsPlatform.GREENHOUSE },
+  { name: "BlockFi", identifier: "blockfi", platform: AtsPlatform.GREENHOUSE },
+  { name: "Gemini", identifier: "gemini", platform: AtsPlatform.GREENHOUSE },
+  { name: "Marqeta", identifier: "marqeta", platform: AtsPlatform.GREENHOUSE },
+  { name: "Checkout.com", identifier: "checkout", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== INDIAN UNICORNS (All Departments) ==========
   { name: "Zomato", identifier: "zomato", platform: AtsPlatform.GREENHOUSE },
   { name: "Swiggy", identifier: "swiggy", platform: AtsPlatform.GREENHOUSE },
   { name: "PhonePe", identifier: "phonepe", platform: AtsPlatform.GREENHOUSE },
@@ -52,10 +62,29 @@ export const INITIAL_COMPANIES = [
   { name: "Ola", identifier: "ola", platform: AtsPlatform.GREENHOUSE },
   { name: "BrowserStack", identifier: "browserstack", platform: AtsPlatform.GREENHOUSE },
   { name: "Chargebee", identifier: "chargebee", platform: AtsPlatform.GREENHOUSE },
-  { name: "Postman", identifier: "postman", platform: AtsPlatform.GREENHOUSE },
   { name: "Zerodha", identifier: "zerodha", platform: AtsPlatform.GREENHOUSE },
 
-  // LEVER
+  // ========== SALES & MARKETING FOCUSED ==========
+  { name: "HubSpot", identifier: "hubspot", platform: AtsPlatform.GREENHOUSE },
+  { name: "Salesforce", identifier: "salesforce", platform: AtsPlatform.GREENHOUSE },
+  { name: "Snowflake", identifier: "snowflake", platform: AtsPlatform.GREENHOUSE },
+  { name: "Monday.com", identifier: "monday", platform: AtsPlatform.GREENHOUSE },
+  { name: "Amplitude", identifier: "amplitude", platform: AtsPlatform.GREENHOUSE },
+  { name: "Mixpanel", identifier: "mixpanel", platform: AtsPlatform.GREENHOUSE },
+  { name: "Segment", identifier: "segment", platform: AtsPlatform.GREENHOUSE },
+  { name: "Intercom", identifier: "intercom", platform: AtsPlatform.GREENHOUSE },
+  { name: "Zapier", identifier: "zapier", platform: AtsPlatform.GREENHOUSE },
+  { name: "Airtable", identifier: "airtable", platform: AtsPlatform.GREENHOUSE },
+  { name: "Miro", identifier: "miro", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== CONSULTING & PROFESSIONAL SERVICES (Finance, Legal, Sales) ==========
+  { name: "KPMG", identifier: "kpmg", platform: AtsPlatform.LEVER },
+  { name: "McKinsey", identifier: "mckinsey", platform: AtsPlatform.LEVER },
+  { name: "BCG", identifier: "bcg", platform: AtsPlatform.LEVER },
+  { name: "Bain", identifier: "bain", platform: AtsPlatform.LEVER },
+  { name: "Deloitte Digital", identifier: "deloittedigital", platform: AtsPlatform.LEVER },
+
+  // ========== LEVER - DIVERSE COMPANIES ==========
   { name: "Figma", identifier: "figma", platform: AtsPlatform.LEVER },
   { name: "Netflix", identifier: "netflix", platform: AtsPlatform.LEVER },
   { name: "Atlassian", identifier: "atlassian", platform: AtsPlatform.LEVER },
@@ -63,7 +92,6 @@ export const INITIAL_COMPANIES = [
   { name: "Palantir", identifier: "palantir", platform: AtsPlatform.LEVER },
   { name: "Udacity", identifier: "udacity", platform: AtsPlatform.LEVER },
   { name: "Shopify", identifier: "shopify", platform: AtsPlatform.LEVER },
-  { name: "KPMG", identifier: "kpmg", platform: AtsPlatform.LEVER },
   { name: "Docusign", identifier: "docusign", platform: AtsPlatform.LEVER },
   { name: "Evernote", identifier: "evernote", platform: AtsPlatform.LEVER },
   { name: "Yelp", identifier: "yelp", platform: AtsPlatform.LEVER },
@@ -71,11 +99,21 @@ export const INITIAL_COMPANIES = [
   { name: "Eventbrite", identifier: "eventbrite", platform: AtsPlatform.LEVER },
   { name: "Zepto", identifier: "zepto", platform: AtsPlatform.LEVER },
 
-  // ASHBY
+  // ========== MARKETING & MEDIA COMPANIES ==========
+  { name: "BuzzFeed", identifier: "buzzfeed", platform: AtsPlatform.LEVER },
+  { name: "Vice Media", identifier: "vice", platform: AtsPlatform.LEVER },
+  { name: "The New York Times", identifier: "nytimes", platform: AtsPlatform.LEVER },
+  { name: "Vox Media", identifier: "voxmedia", platform: AtsPlatform.LEVER },
+
+  // ========== ASHBY - MODERN STARTUPS ==========
   { name: "Notion", identifier: "notion", platform: AtsPlatform.ASHBY },
   { name: "Deel", identifier: "deel", platform: AtsPlatform.ASHBY },
   { name: "Rippling", identifier: "rippling", platform: AtsPlatform.ASHBY },
   { name: "Linear", identifier: "linear", platform: AtsPlatform.ASHBY },
   { name: "Vanta", identifier: "vanta", platform: AtsPlatform.ASHBY },
   { name: "Remote.com", identifier: "remote", platform: AtsPlatform.ASHBY },
+  { name: "OpenAI", identifier: "openai", platform: AtsPlatform.ASHBY },
+  { name: "Anthropic", identifier: "anthropic", platform: AtsPlatform.ASHBY },
+  { name: "Perplexity", identifier: "perplexity", platform: AtsPlatform.ASHBY },
+  { name: "Scale AI", identifier: "scale", platform: AtsPlatform.ASHBY },
 ];
