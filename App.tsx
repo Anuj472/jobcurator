@@ -284,7 +284,7 @@ const App: React.FC = () => {
           title: j.title,
           category: j.category,
           location_city: j.location_city || 'Remote',
-          location_country: j.location_country || 'United States',
+          location_country: j.location_country || 'Global',
           job_type: j.job_type,
           apply_link: j.apply_link,
           description: j.description || '',
