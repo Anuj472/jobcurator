@@ -10,10 +10,15 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         // Allow all hosts in development (for cloud environments like Lightning AI, Codespaces, Gitpod)
         allowedHosts: 'all',
-        // Enable HMR for cloud environments
+        // Enable HMR for better hot reload
         hmr: {
           protocol: 'ws',
           host: 'localhost',
+          port: 3000,
+        },
+        // Watch options for better file monitoring
+        watch: {
+          usePolling: true,
         },
       },
       plugins: [react()],
