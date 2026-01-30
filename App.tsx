@@ -43,15 +43,25 @@ const App: React.FC = () => {
     try {
       const { data } = await supabase.from('jobs').select('apply_link');
       if (data) setSyncedApplyLinks(new Set(data.map(j => j.apply_link)));
-    } catch (e) {}
+    } catch (e) {
+      console.error('❌ Error fetching synced links:', e);
+    }
   };
 
   const fetchDbJobs = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase.from('jobs').select('*, company:companies(*)').order('created_at', { ascending: false });
-      if (data) setDbJobs(data as any[]);
-    } catch (e) {}
+      const { data, error } = await supabase.from('jobs').select('*, company:companies(*)').order('created_at', { ascending: false });
+      if (error) {
+        console.error('❌ Error fetching DB jobs:', error);
+        setStatus(`Error: ${error.message}`);
+      } else if (data) {
+        setDbJobs(data as any[]);
+      }
+    } catch (e: any) {
+      console.error('❌ Exception fetching DB jobs:', e);
+      setStatus(`Error: ${e.message}`);
+    }
     setLoading(false);
   };
 
@@ -167,41 +177,54 @@ const App: React.FC = () => {
     atsIdentifier?: string
   ): Promise<{ id: string | null; wasCreated: boolean; error?: string }> => {
     try {
+      console.log(`🔍 Looking up company: ${companyName}`);
       const slug = AtsService.generateSlug(companyName);
       
       // First: Try exact slug match
-      let { data: existing } = await supabase
+      let { data: existing, error: lookupError } = await supabase
         .from('companies')
         .select('id')
         .eq('slug', slug)
         .maybeSingle();
       
+      if (lookupError) {
+        console.error(`❌ Error looking up by slug:`, lookupError);
+      }
+      
       // Second: Try case-insensitive name match if slug didn't work
       if (!existing) {
-        const { data: nameMatch } = await supabase
+        const { data: nameMatch, error: nameError } = await supabase
           .from('companies')
           .select('id')
           .ilike('name', companyName)
           .maybeSingle();
+        if (nameError) {
+          console.error(`❌ Error looking up by name:`, nameError);
+        }
         existing = nameMatch;
       }
       
       // Third: Try ATS identifier match if provided
       if (!existing && atsIdentifier && atsPlatform) {
-        const { data: atsMatch } = await supabase
+        const { data: atsMatch, error: atsError } = await supabase
           .from('companies')
           .select('id')
           .eq('ats_platform', atsPlatform)
           .eq('ats_identifier', atsIdentifier)
           .maybeSingle();
+        if (atsError) {
+          console.error(`❌ Error looking up by ATS:`, atsError);
+        }
         existing = atsMatch;
       }
       
       if (existing) {
+        console.log(`✅ Found existing company: ${companyName} (${existing.id})`);
         return { id: existing.id, wasCreated: false };
       }
 
       // Create new company with enhanced metadata
+      console.log(`📝 Creating new company: ${companyName}`);
       const { data: created, error } = await supabase
         .from('companies')
         .insert({ 
@@ -272,7 +295,7 @@ const App: React.FC = () => {
         allFound.push(...normalized);
         if (i % 3 === 0) setDiscoveredJobs([...allFound]);
       } catch (e) {
-        console.error(`Harvest failure for ${company.name}`);
+        console.error(`❌ Harvest failure for ${company.name}:`, e);
       }
     }
 
@@ -285,8 +308,12 @@ const App: React.FC = () => {
 
   const pushToDatabase = async () => {
     const unSynced = discoveredJobs.filter(j => j.apply_link && !syncedApplyLinks.has(j.apply_link));
-    if (unSynced.length === 0) return;
+    if (unSynced.length === 0) {
+      setStatus('⚠️ All jobs already synced!');
+      return;
+    }
 
+    console.log(`🚀 Starting sync of ${unSynced.length} jobs...`);
     setPushingAll(true);
     setSyncProgress({
       currentCompany: 'Connecting...',
@@ -306,9 +333,12 @@ const App: React.FC = () => {
 
     let companiesCreated = 0;
     let companiesFailed: string[] = [];
+    let jobsSucceeded = 0;
+    let jobsFailed = 0;
 
     for (const companyName of Object.keys(groups)) {
       const jobsInGroup = groups[companyName];
+      console.log(`\n📦 Processing company: ${companyName} (${jobsInGroup.length} jobs)`);
       setSyncProgress(prev => prev ? { ...prev, currentCompany: companyName } : null);
 
       try {
@@ -327,23 +357,41 @@ const App: React.FC = () => {
         
         if (result.wasCreated) {
           companiesCreated++;
-          console.log(`📝 New company auto-created: ${companyName}`);
         }
 
-        const payload = jobsInGroup.map(j => ({
-          company_id: result.id!,
-          title: j.title,
-          category: j.category,
-          location_city: j.location_city || 'Remote',
-          location_country: j.location_country || 'Global',
-          job_type: j.job_type,
-          apply_link: j.apply_link,
-          description: j.description || '',
-          is_active: true
-        }));
+        // Validate and prepare payload
+        const payload = jobsInGroup
+          .filter(j => j.title && j.apply_link) // Only include jobs with required fields
+          .map(j => ({
+            company_id: result.id!,
+            title: j.title!,
+            category: j.category || 'it',
+            location_city: j.location_city || 'Remote',
+            location_country: j.location_country || 'Global',
+            job_type: j.job_type || 'Remote',
+            apply_link: j.apply_link!,
+            description: j.description || '',
+            is_active: true
+          }));
 
-        const { error } = await supabase.from('jobs').upsert(payload, { onConflict: 'apply_link' });
-        if (error) throw error;
+        if (payload.length === 0) {
+          console.warn(`⚠️ No valid jobs to sync for ${companyName}`);
+          continue;
+        }
+
+        console.log(`💾 Inserting ${payload.length} jobs for ${companyName}...`);
+        const { data, error } = await supabase
+          .from('jobs')
+          .upsert(payload, { onConflict: 'apply_link' })
+          .select();
+        
+        if (error) {
+          console.error(`❌ Supabase error for ${companyName}:`, error);
+          throw error;
+        }
+
+        jobsSucceeded += payload.length;
+        console.log(`✅ Successfully synced ${payload.length} jobs for ${companyName}`);
 
         setSyncProgress(prev => {
           if (!prev) return null;
@@ -354,37 +402,52 @@ const App: React.FC = () => {
             synced: 0, 
             failed: 0 
           };
-          stat.synced += jobsInGroup.length;
+          stat.synced += payload.length;
           return {
             ...prev,
-            processedCount: prev.processedCount + jobsInGroup.length,
-            successCount: prev.successCount + jobsInGroup.length,
+            processedCount: prev.processedCount + payload.length,
+            successCount: prev.successCount + payload.length,
             companyStats: { ...prev.companyStats, [companyName]: stat }
           };
         });
       } catch (err: any) {
         companiesFailed.push(companyName);
+        jobsFailed += jobsInGroup.length;
         console.error(`❌ Failed to sync ${companyName}:`, err.message);
         
         setSyncProgress(prev => {
           if (!prev) return null;
+          const stat = prev.companyStats[companyName] || { 
+            name: companyName, 
+            uuid: '', 
+            found: jobsInGroup.length, 
+            synced: 0, 
+            failed: jobsInGroup.length,
+            lastError: err.message
+          };
+          stat.failed = jobsInGroup.length;
+          stat.lastError = err.message;
           return { 
             ...prev, 
             processedCount: prev.processedCount + jobsInGroup.length, 
-            errorCount: prev.errorCount + jobsInGroup.length 
+            errorCount: prev.errorCount + jobsInGroup.length,
+            companyStats: { ...prev.companyStats, [companyName]: stat }
           };
         });
       }
     }
 
     // Final summary
-    console.log(`
-      🎯 Sync Summary:
-      - Companies auto-created: ${companiesCreated}
-      - Companies failed: ${companiesFailed.length}
-      ${companiesFailed.length > 0 ? `- Failed companies: ${companiesFailed.join(', ')}` : ''}
-    `);
+    console.log(`\n🎯 Sync Summary:`);
+    console.log(`   ✅ Jobs succeeded: ${jobsSucceeded}`);
+    console.log(`   ❌ Jobs failed: ${jobsFailed}`);
+    console.log(`   📝 Companies created: ${companiesCreated}`);
+    console.log(`   ⚠️ Companies failed: ${companiesFailed.length}`);
+    if (companiesFailed.length > 0) {
+      console.log(`   Failed: ${companiesFailed.join(', ')}`);
+    }
 
+    setStatus(`Sync complete! ✅ ${jobsSucceeded} jobs synced, ❌ ${jobsFailed} failed`);
     setPushingAll(false);
     fetchSyncedLinks();
     if (activeTab === 'database') fetchDbJobs();
@@ -406,7 +469,7 @@ const App: React.FC = () => {
           <div className="flex gap-2">
             {activeTab === 'discovery' && discoveredJobs.length > 0 && (
               <button onClick={pushToDatabase} disabled={pushingAll} className="bg-green-600 text-white px-6 py-2 rounded-xl text-[10px] font-black hover:bg-green-700 transition-all shadow-lg shadow-green-100 uppercase">
-                {pushingAll ? 'SYNCING DATA...' : `SYNC ${discoveredJobs.length} ROLES`}
+                {pushingAll ? 'SYNCING DATA...' : `SYNC ${discoveredJobs.filter(j => j.apply_link && !syncedApplyLinks.has(j.apply_link)).length} ROLES`}
               </button>
             )}
             <button onClick={runMassiveHarvest} disabled={loading} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black hover:bg-black transition-all uppercase">
@@ -421,7 +484,8 @@ const App: React.FC = () => {
         {syncProgress && (
           <div className="mb-12 bg-white border-4 border-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="bg-slate-900 p-10 text-white">
-              <h3 className="text-3xl font-black uppercase tracking-tighter mb-8">Data Ingestion Engine</h3>
+              <h3 className="text-3xl font-black uppercase tracking-tighter mb-4">Data Ingestion Engine</h3>
+              <p className="text-sm font-mono text-slate-400 mb-8">Processing: {syncProgress.currentCompany}</p>
               <div className="grid grid-cols-3 gap-6">
                 <div className="bg-slate-800 p-6 rounded-3xl border-2 border-slate-700">
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Synced</p>
