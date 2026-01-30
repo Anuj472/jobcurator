@@ -8,6 +8,13 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Allow all hosts in development (for cloud environments like Lightning AI, Codespaces, Gitpod)
+        allowedHosts: 'all',
+        // Enable HMR for cloud environments
+        hmr: {
+          protocol: 'ws',
+          host: 'localhost',
+        },
       },
       plugins: [react()],
       define: {
