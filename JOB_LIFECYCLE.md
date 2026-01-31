@@ -1,388 +1,324 @@
-# 🔄 Smart Job Lifecycle Management
+# 🔄 Automatic Job Lifecycle Management
 
-This document explains how jobcurator automatically keeps your job database **fresh and accurate** by detecting and removing expired jobs.
+## ❓ Your Question:
+> *"If any job expires on the ATS platform, how will I know and how will it get removed from our platform?"*
 
-## ❓ The Problem
+## ✅ Answer: **It's Already Automatic!**
 
-Without lifecycle management:
+The harvest script **automatically detects and handles expired jobs** every time it runs (daily at 12 PM). Here's exactly how it works:
 
-```
-Day 1: Google posts 100 jobs → Database has 100 jobs
-Day 2: Google closes 20 jobs, posts 10 new → Database has 90 jobs (should be)
-       BUT database actually has: 80 old + 20 EXPIRED + 10 new = 110 jobs ❌
-Day 7: Database cluttered with expired jobs users can't apply to ❌
-```
+---
 
-**Result**: Bad user experience - users see jobs that no longer exist!
+## 🛠️ How It Works
 
-## ✅ The Solution
-
-Our **3-step lifecycle management** system:
-
-### Step 1: Sync Active Jobs
+### Step 1: Fetch Current Active Jobs from ATS
 ```typescript
-// Upsert all jobs currently on ATS
-.upsert(normalizedJobs, { onConflict: 'apply_link' })
+// Day 1: Google has 100 jobs on their ATS
+rawJobs = fetchGreenhouseJobs('google')  // Returns 100 jobs
 ```
-- **New jobs**: Created with `is_active: true`
-- **Existing jobs**: Updated with latest data, `is_active: true`
 
-### Step 2: Mark Expired Jobs
+### Step 2: Sync Active Jobs to Database
 ```typescript
-// Mark jobs NO LONGER on ATS as inactive
-markExpiredJobs(companyId, activeApplyLinks)
+// Upsert all 100 jobs with is_active: true
+supabase.upsert(jobs, { onConflict: 'apply_link' })
 ```
-- Compares database jobs vs current ATS jobs
-- Jobs missing from ATS → `is_active: false`
-- Happens **automatically every day**
 
-### Step 3: Delete Very Old Jobs
+### Step 3: **Auto-Detect Expired Jobs** ⭐ **KEY FEATURE**
 ```typescript
-// Delete jobs inactive for >30 days
-.delete()
-.eq('is_active', false)
-.lt('updated_at', thirtyDaysAgo)
-```
-- Permanent cleanup of old expired jobs
-- Keeps database lean
-- Only affects jobs inactive for 30+ days
+// Day 2: Google closes 10 jobs, now only 90 on ATS
+// Script compares:
+//   - ATS has: 90 jobs (current)
+//   - Database has: 100 jobs (old)
+//   - Difference: 10 jobs are EXPIRED!
 
-## 📊 Lifecycle Workflow
-
-### Example: Google's Jobs Over Time
-
-**Day 1 - First Harvest:**
-```
-ATS has: [Job A, Job B, Job C]
-Database: []
-
-Action: Insert all 3 jobs as active
-Result: Database has 3 active jobs ✅
-```
-
-**Day 2 - Job B Closes:**
-```
-ATS has: [Job A, Job C]  // Job B removed
-Database: [Job A (active), Job B (active), Job C (active)]
-
-Action:
-  1. Upsert Job A, Job C → still active
-  2. Mark Job B as inactive (not in ATS anymore)
-  
-Result: Database has 2 active, 1 inactive ✅
-```
-
-**Day 3 - New Job D Added:**
-```
-ATS has: [Job A, Job C, Job D]  // Job D is new
-Database: [Job A (active), Job B (inactive), Job C (active)]
-
-Action:
-  1. Upsert Job A, Job C, Job D
-  2. Job B stays inactive
-  
-Result: Database has 3 active, 1 inactive ✅
-```
-
-**Day 32 - Cleanup:**
-```
-Database: [Job A (active), Job B (inactive for 31 days), Job C (active), Job D (active)]
-
-Action: Delete Job B (inactive >30 days)
-Result: Database has 3 active, 0 inactive ✅
-```
-
-## 🔍 How Expired Jobs Are Detected
-
-### Method: Apply Link Comparison
-
-```typescript
 const markExpiredJobs = async (companyId, activeApplyLinks) => {
-  // Find all jobs for this company NOT in the active list
+  // Find jobs in DB that are NOT in current ATS feed
   await supabase
-    .from('jobs')
-    .update({ is_active: false })
+    .update({ is_active: false })  // Mark as inactive
     .eq('company_id', companyId)
-    .eq('is_active', true)
-    .not('apply_link', 'in', activeApplyLinks)  // 👈 Key logic
+    .not('apply_link', 'in', activeApplyLinks);  // Not in current feed
 };
 ```
 
-**Logic:**
-1. Get all active jobs for company from database
-2. Get all job apply_links currently on ATS
-3. Any database job whose `apply_link` is NOT in ATS list = expired
-4. Set `is_active: false` for those jobs
-
-### Why `apply_link` as Unique Key?
-
-✅ **Stable**: URL doesn't change  
-✅ **Unique**: Each job has one apply link  
-✅ **Reliable**: If link is gone, job is closed  
-
-## 📊 Database Impact
-
-### Before Lifecycle Management:
-```sql
-SELECT COUNT(*) FROM jobs WHERE is_active = true;
--- Result: 5,000 jobs (includes 1,500 expired!) ❌
-```
-
-### After Lifecycle Management:
-```sql
-SELECT COUNT(*) FROM jobs WHERE is_active = true;
--- Result: 3,500 jobs (only real active jobs) ✅
-```
-
-### Growth Over Time:
-```
-Week 1: 3,500 active jobs
-Week 2: 3,700 active jobs (+200 net)
-Week 3: 3,600 active jobs (-100 net, some closed)
-Week 4: 3,800 active jobs (+200 net)
-```
-
-**Key Point**: Database size naturally fluctuates with real job market! 📉
-
-## ⚙️ Configuration Options
-
-### Cleanup Retention Period
-
-Default: **30 days**  
-Location: `scripts/harvest.ts` line ~200
-
+### Step 4: Cleanup Old Inactive Jobs (After 30 Days)
 ```typescript
-// Change retention period
-const thirtyDaysAgo = new Date();
-thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);  // Change 30 to desired days
-```
-
-**Options:**
-- `7` days - Aggressive cleanup (smaller DB)
-- `30` days - Balanced (recommended)
-- `90` days - Keep history longer
-- `0` - Never delete (disable cleanup)
-
-### Disable Auto-Cleanup
-
-Comment out the cleanup section:
-
-```typescript
-// STEP 3: Optional - Delete very old inactive jobs
-/*
-const { data: deletedJobs } = await supabase
-  .from('jobs')
+// Jobs inactive for >30 days are permanently deleted
+supabase
   .delete()
   .eq('is_active', false)
-  .lt('updated_at', thirtyDaysAgo.toISOString())
-  .select('id');
-*/
+  .lt('updated_at', thirtyDaysAgo);
 ```
 
-## 📊 Monitoring Lifecycle Health
+---
 
-### Daily Harvest Logs
+## 📊 Example Timeline
 
-Every harvest shows:
-
+### Day 1 - Initial Harvest
 ```
+ATS: 100 jobs active
+DB:  100 jobs (all is_active: true)
+```
+
+### Day 2 - Company Closes 10 Jobs
+```
+ATS: 90 jobs active (10 removed)
+DB:  100 jobs total
+     ├─ 90 is_active: true  ✅ (still on ATS)
+     └─ 10 is_active: false ❌ (AUTOMATICALLY marked as expired)
+```
+
+### Day 32 - Cleanup Old Jobs
+```
+ATS: 90 jobs active
+DB:  90 jobs total
+     ├─ 90 is_active: true  ✅
+     └─ 10 old jobs DELETED 🗑️ (inactive >30 days)
+```
+
+---
+
+## 🔍 How acrossjobs Shows Only Active Jobs
+
+By default, the acrossjobs frontend **only queries active jobs**:
+
+```typescript
+// In acrossjobs, this query filters out expired jobs:
+const { data } = await supabase
+  .from('jobs')
+  .select('*')
+  .eq('is_active', true);  // ⭐ Only active jobs shown!
+```
+
+**Result:** Users never see expired jobs! ✅
+
+---
+
+## 📝 Daily Harvest Log Example
+
+```bash
+======================================================================
+🚀 JOB HARVESTER WITH LIFECYCLE MANAGEMENT
+   Started: 2026-02-01T06:30:00.000Z
+======================================================================
+
+📦 Processing: Google
+   Found 90 active jobs on ATS
+   ✅ Synced 90 active jobs
+   🔄 Marked 10 expired jobs as inactive  ⭐ AUTOMATIC!
+
+📦 Processing: Microsoft
+   Found 150 active jobs on ATS
+   ✅ Synced 150 active jobs
+   🔄 Marked 5 expired jobs as inactive   ⭐ AUTOMATIC!
+
+🧹 Cleaning up very old inactive jobs...
+   🗑️ Deleted 23 jobs inactive for >30 days
+
+======================================================================
 📊 HARVEST SUMMARY
 ======================================================================
    Companies processed: 100
-   Jobs found on ATS: 3,500
-   Jobs synced/updated: 3,500
-   Jobs marked expired: 200      👈 Jobs that closed today
-   Jobs deleted (>30d old): 15    👈 Old cleanup
+   Jobs found on ATS: 8,542
+   Jobs synced/updated: 8,542
+   Jobs marked expired: 327      ⭐ Automatic detection!
+   Jobs deleted (>30d old): 23
    Jobs failed: 0
+======================================================================
 ```
 
-### SQL Queries for Monitoring
+---
 
-**1. Active vs Inactive Jobs:**
-```sql
-SELECT 
-  is_active,
-  COUNT(*) as count
-FROM jobs
-GROUP BY is_active;
+## ✨ Key Benefits
 
--- Result:
--- is_active | count
--- true      | 3,500
--- false     | 250
+✅ **Zero Manual Work** - Fully automatic, no intervention needed  
+✅ **Always Fresh** - Database matches ATS reality  
+✅ **No Duplicates** - `apply_link` is unique key  
+✅ **Clean Database** - Old jobs auto-deleted after 30 days  
+✅ **User Experience** - acrossjobs only shows active jobs  
+✅ **Daily Updates** - Runs every day at 12 PM IST  
+
+---
+
+## 💡 How Jobs Are Identified
+
+### Unique Identifier: `apply_link`
+
+Each job is uniquely identified by its **apply URL**:
+
+```typescript
+// Example apply_link:
+"https://boards.greenhouse.io/google/jobs/123456"
+
+// Database constraint:
+CREATE UNIQUE INDEX jobs_apply_link_key ON jobs(apply_link);
 ```
 
-**2. Recently Expired Jobs:**
-```sql
-SELECT 
-  title,
-  company_id,
-  updated_at
-FROM jobs
-WHERE is_active = false
-  AND updated_at > NOW() - INTERVAL '7 days'
-ORDER BY updated_at DESC
-LIMIT 20;
+**Why this works:**
+- Each job posting has a unique ATS URL
+- If URL disappears from ATS feed → Job expired
+- If URL reappears → Job reopened (marked active again)
+
+---
+
+## 🔍 What Happens in Different Scenarios
+
+### Scenario 1: Job Still Open
+```
+Day 1: Job in ATS → is_active: true
+Day 2: Job in ATS → is_active: true (updated)
+Day 3: Job in ATS → is_active: true (updated)
+```
+**Result:** Job stays active ✅
+
+### Scenario 2: Job Gets Closed
+```
+Day 1: Job in ATS → is_active: true
+Day 2: Job NOT in ATS → is_active: false ❌ (auto-marked)
+Day 3: Job NOT in ATS → is_active: false
+```
+**Result:** Job marked inactive automatically ✅
+
+### Scenario 3: Job Reopened
+```
+Day 1: Job in ATS → is_active: true
+Day 2: Job NOT in ATS → is_active: false
+Day 3: Job BACK in ATS → is_active: true ✅ (reactivated!)
+```
+**Result:** Job reactivated automatically ✅
+
+### Scenario 4: Job Inactive for 30+ Days
+```
+Day 1: Job closed → is_active: false
+Day 30: Still inactive
+Day 31: DELETED from database 🗑️
+```
+**Result:** Permanent cleanup ✅
+
+---
+
+## ⏱️ Retention Policy
+
+| Job Status | Retention | Action |
+|------------|-----------|--------|
+| **Active** | Forever | Kept and updated daily |
+| **Inactive** (0-30 days) | 30 days | Kept but hidden from users |
+| **Inactive** (>30 days) | Deleted | Permanently removed |
+
+**Why keep inactive jobs for 30 days?**
+- Companies sometimes repost jobs
+- Allows for data analysis
+- Gives buffer for temporary ATS issues
+
+---
+
+## 🔧 Customizing Retention Period
+
+To change the 30-day cleanup period, edit `scripts/harvest.ts`:
+
+```typescript
+// Current: 30 days
+const thirtyDaysAgo = new Date();
+thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+// Change to 60 days:
+const sixtyDaysAgo = new Date();
+sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+// Change to 7 days (aggressive cleanup):
+const sevenDaysAgo = new Date();
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 ```
 
-**3. Jobs By Company (Active Only):**
+---
+
+## 📊 Monitoring Job Health
+
+### Check Active vs Inactive Jobs
+
 ```sql
+-- Count active jobs
+SELECT COUNT(*) FROM jobs WHERE is_active = true;
+
+-- Count inactive jobs
+SELECT COUNT(*) FROM jobs WHERE is_active = false;
+
+-- Jobs by company with expiry rate
 SELECT 
   c.name,
-  COUNT(*) as active_jobs
+  COUNT(*) FILTER (WHERE j.is_active = true) as active,
+  COUNT(*) FILTER (WHERE j.is_active = false) as inactive
 FROM jobs j
-JOIN companies c ON c.id = j.company_id
-WHERE j.is_active = true
+JOIN companies c ON j.company_id = c.id
 GROUP BY c.name
-ORDER BY active_jobs DESC
-LIMIT 10;
+ORDER BY inactive DESC;
 ```
 
-**4. Inactive Jobs Pending Cleanup:**
+### Monitor Churn Rate
+
 ```sql
+-- Jobs that became inactive in last 7 days
 SELECT 
-  COUNT(*) as jobs_to_delete
+  title,
+  company.name,
+  updated_at as expired_date
 FROM jobs
 WHERE is_active = false
-  AND updated_at < NOW() - INTERVAL '30 days';
+  AND updated_at >= NOW() - INTERVAL '7 days'
+ORDER BY updated_at DESC;
 ```
 
-## 👁️ User-Facing Impact
+---
 
-### In AcrossJobs Frontend
+## ❓ FAQ
 
-**Default Query (Shows Only Active):**
+### Q: What if a job is temporarily removed from ATS by mistake?
+**A:** It will be marked inactive, but kept for 30 days. If it reappears within 30 days, it's automatically reactivated.
+
+### Q: Can I manually mark a job as inactive?
+**A:** Yes, update directly in Supabase:
+```sql
+UPDATE jobs SET is_active = false WHERE id = 'job-id';
+```
+
+### Q: Can I prevent certain jobs from being marked inactive?
+**A:** Not recommended, but you could add a `permanent` flag:
+```sql
+ALTER TABLE jobs ADD COLUMN permanent BOOLEAN DEFAULT false;
+-- Then modify harvest script to skip jobs with permanent = true
+```
+
+### Q: How do I see expired jobs in acrossjobs?
+**A:** Add a filter toggle:
 ```typescript
-const { data: jobs } = await supabase
+// In acrossjobs query:
+const showInactive = false;  // Make this a state variable
+
+const { data } = await supabase
   .from('jobs')
-  .select('*, company:companies(*)')
-  .eq('is_active', true)  // 👈 Only show active jobs
-  .order('created_at', { ascending: false });
+  .select('*')
+  .eq('is_active', showInactive ? false : true);
 ```
 
-**Result**: Users only see jobs they can actually apply to! ✅
+### Q: What if ATS API is down during harvest?
+**A:** Jobs won't be marked as expired because the script will fail before reaching that step. They remain active until next successful harvest.
 
-### Optional: Show "Recently Closed" Section
+---
 
-```typescript
-const { data: recentlyClosed } = await supabase
-  .from('jobs')
-  .select('*, company:companies(*)')
-  .eq('is_active', false)
-  .gte('updated_at', new Date(Date.now() - 7*24*60*60*1000).toISOString())
-  .order('updated_at', { ascending: false })
-  .limit(10);
-```
+## 🚀 Summary
 
-Display with "This job is no longer available" badge.
+**Your original question:**
+> *"If any job expires on platform, how will I know and get it removed?"*
 
-## ⚠️ Edge Cases Handled
+**Answer:**
+✅ **Automatic Detection** - Script compares ATS vs Database daily  
+✅ **Automatic Marking** - Expired jobs → `is_active: false`  
+✅ **Automatic Cleanup** - Jobs >30 days old are deleted  
+✅ **User-Friendly** - acrossjobs only shows active jobs  
+✅ **Zero Manual Work** - Fully automated lifecycle management  
 
-### Case 1: Company Removes ALL Jobs
-
-```typescript
-if (rawJobs.length === 0) {
-  // Mark all existing jobs as inactive
-  await markExpiredJobs(companyId, []);
-}
-```
-
-**Result**: All jobs marked inactive if company has zero openings ✅
-
-### Case 2: ATS API Down
-
-```typescript
-try {
-  rawJobs = await AtsService.fetchGreenhouseJobs(identifier);
-} catch (err) {
-  console.error('ATS fetch failed');
-  continue;  // Skip this company, don't mark jobs inactive
-}
-```
-
-**Result**: If API fails, jobs stay active (safe default) ✅
-
-### Case 3: Duplicate Apply Links
-
-```typescript
-.upsert(normalizedJobs, { onConflict: 'apply_link' })
-```
-
-**Result**: Database constraint ensures one job per apply_link ✅
-
-### Case 4: Job Re-posted After Closure
-
-```
-Day 1: Job A posted → active
-Day 10: Job A closed → inactive
-Day 15: Job A re-posted (same apply_link) → active again
-```
-
-**Result**: Upsert updates existing row back to active ✅
-
-## 🛠️ Troubleshooting
-
-### Issue: Too Many Jobs Marked Expired
-
-**Symptoms**: Hundreds of jobs marked inactive daily  
-**Possible Causes**:
-- ATS API changed response format
-- Network issues causing incomplete fetches
-- Company changed ATS platform
-
-**Fix**:
-1. Check harvest logs for errors
-2. Manually verify ATS website
-3. Update ATS normalization logic if needed
-
-### Issue: Expired Jobs Not Being Marked
-
-**Symptoms**: Database has jobs that don't exist on ATS  
-**Check**:
-```typescript
-// Verify markExpiredJobs is being called
-console.log('Active links:', activeApplyLinks.length);
-const expired = await markExpiredJobs(companyId, activeApplyLinks);
-console.log('Expired:', expired);
-```
-
-**Fix**: Ensure `apply_link` format matches between ATS and database
-
-### Issue: Jobs Deleted Too Soon
-
-**Symptoms**: Recent jobs disappearing  
-**Cause**: Cleanup retention period too short  
-**Fix**: Increase from 30 to 60 or 90 days
-
-## 📊 Statistics & Benchmarks
-
-Expected lifecycle metrics (100 companies):
-
-**Daily Changes:**
-- New jobs: 100-200/day (2-4%)
-- Expired jobs: 80-150/day (2-3%)
-- Net change: +20 to +50/day
-
-**Cleanup (30 days):**
-- Jobs deleted: 10-30/day
-- Total inactive: 200-400 at any time
-
-**Database Size:**
-- Active jobs: 3,000-5,000
-- Inactive jobs: 200-400
-- Total: ~3,500-5,500
-
-## ✅ Benefits Summary
-
-✅ **Accurate Data**: Users only see real, active jobs  
-✅ **Better UX**: No "job no longer available" frustration  
-✅ **Lean Database**: Auto-cleanup prevents bloat  
-✅ **Market Insights**: Track hiring trends over time  
-✅ **SEO Friendly**: Search engines don't index dead links  
-✅ **Cost Efficient**: Smaller database = lower hosting costs  
+**No action needed from you!** The system handles everything automatically. 🎉
 
 ---
 
 **Last Updated:** February 1, 2026  
-**Version:** 1.0  
-**Status:** ✅ Production Ready
+**Feature Status:** ✅ Production Ready
