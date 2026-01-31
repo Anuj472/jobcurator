@@ -1,13 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Automated Job Harvester
+ * Automated Job Harvester - Fixed for acrossjobs filters
  * Runs daily to fetch and sync jobs from all configured companies
+ * Ensures all fields required for acrossjobs filters are properly set
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType } from '../types';
+
+type ExperienceLevel = 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -39,7 +42,7 @@ const mapToJobCategory = (rawDept: string | undefined, title: string | undefined
   const researchKeywords = ['research', 'scientist', 'science', 'r&d', 'algorithm', 'lab', 'phd', 'postdoc', 'ml researcher', 'ai researcher'];
   if (researchKeywords.some(kw => combined.includes(kw))) return 'research-development';
   
-  const managementKeywords = ['ceo', 'cto', 'coo', 'cmo', 'chief', 'vp ', 'vice president', 'director of', 'head of'];
+  const managementKeywords = ['ceo', 'cto', 'coo', 'cmo', 'chief', 'vp ', 'vice president', 'director of', 'head of', 'hr ', 'human resources', 'people ops'];
   if (managementKeywords.some(kw => combined.includes(kw))) return 'management';
   
   const itKeywords = ['engineer', 'developer', 'software', 'frontend', 'backend', 'devops', 'sre', 'architect', 'programming', 'cloud', 'security'];
@@ -53,6 +56,30 @@ const mapToJobType = (location: string | undefined, title: string | undefined): 
   if (combined.includes('remote') || combined.includes('anywhere')) return 'Remote';
   if (combined.includes('hybrid')) return 'Hybrid';
   return 'On-site';
+};
+
+// NEW: Experience level detection based on job title
+const mapToExperienceLevel = (title: string | undefined, description: string | undefined): ExperienceLevel => {
+  const combined = `${title || ''} ${description || ''}`.toLowerCase();
+  
+  // Executive level (C-suite, VP, Directors)
+  const executiveKeywords = ['ceo', 'cto', 'coo', 'cfo', 'cmo', 'chief', 'vp ', 'vice president', 'executive director', 'managing director'];
+  if (executiveKeywords.some(kw => combined.includes(kw))) return 'Executive';
+  
+  // Lead level (Team leads, Principal, Staff+)
+  const leadKeywords = ['lead ', 'principal', 'staff engineer', 'staff developer', 'architect', 'head of'];
+  if (leadKeywords.some(kw => combined.includes(kw))) return 'Lead';
+  
+  // Senior level
+  const seniorKeywords = ['senior', 'sr.', 'sr ', 'expert'];
+  if (seniorKeywords.some(kw => combined.includes(kw))) return 'Senior Level';
+  
+  // Entry level (Intern, Junior, Graduate, Associate)
+  const entryKeywords = ['intern', 'junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate', 'trainee'];
+  if (entryKeywords.some(kw => combined.includes(kw))) return 'Entry Level';
+  
+  // Default to Mid Level (most common for non-specified roles)
+  return 'Mid Level';
 };
 
 const getOrCreateCompanyId = async (
@@ -109,6 +136,8 @@ const harvestAndSync = async () => {
   let totalFound = 0;
   let totalSynced = 0;
   let totalFailed = 0;
+  let categoryStats: Record<string, number> = {};
+  let experienceStats: Record<string, number> = {};
 
   for (const company of INITIAL_COMPANIES) {
     try {
@@ -142,7 +171,7 @@ const harvestAndSync = async () => {
         continue;
       }
 
-      // Normalize jobs
+      // Normalize jobs with ALL required fields
       const normalizedJobs = rawJobs.map(j => {
         let norm: Partial<Job>;
         if (company.platform === AtsPlatform.GREENHOUSE) {
@@ -153,13 +182,22 @@ const harvestAndSync = async () => {
           norm = AtsService.normalizeAshby(j, '');
         }
 
+        const category = mapToJobCategory(norm.category, norm.title);
+        const jobType = mapToJobType(norm.location_city, norm.title);
+        const experienceLevel = mapToExperienceLevel(norm.title, norm.description);
+
+        // Track stats
+        categoryStats[category] = (categoryStats[category] || 0) + 1;
+        experienceStats[experienceLevel || 'null'] = (experienceStats[experienceLevel || 'null'] || 0) + 1;
+
         return {
           company_id: companyId,
           title: norm.title!,
-          category: mapToJobCategory(norm.category, norm.title),
+          category: category,
           location_city: norm.location_city || 'Remote',
           location_country: norm.location_country || 'Global',
-          job_type: mapToJobType(norm.location_city, norm.title),
+          job_type: jobType,
+          experience_level: experienceLevel, // CRITICAL: Now properly set
           apply_link: norm.apply_link!,
           description: norm.description || '',
           is_active: true
@@ -196,6 +234,14 @@ const harvestAndSync = async () => {
   console.log(`   Jobs found: ${totalFound}`);
   console.log(`   Jobs synced: ${totalSynced}`);
   console.log(`   Jobs failed: ${totalFailed}`);
+  console.log(`\n📂 Category Distribution:`);
+  Object.entries(categoryStats).forEach(([cat, count]) => {
+    console.log(`   ${cat}: ${count}`);
+  });
+  console.log(`\n🎯 Experience Level Distribution:`);
+  Object.entries(experienceStats).forEach(([level, count]) => {
+    console.log(`   ${level}: ${count}`);
+  });
   console.log(`${'='.repeat(60)}\n`);
 };
 
