@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Automated Job Harvester with Smart Lifecycle Management
+ * VERSION: 2.0 - WITH INTERNSHIP DETECTION
  * - Fetches jobs daily from all configured companies
  * - Marks expired/closed jobs as inactive automatically
  * - Detects internships/apprenticeships as separate experience level
@@ -13,6 +14,8 @@ import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType } from '../types';
 
 type ExperienceLevel = 'Internship' | 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
+
+const HARVEST_VERSION = '2.0-INTERNSHIP';
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -188,6 +191,7 @@ const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): P
 const harvestAndSync = async () => {
   console.log(`\n${'='.repeat(70)}`);
   console.log(`🚀 JOB HARVESTER WITH LIFECYCLE MANAGEMENT`);
+  console.log(`   Version: ${HARVEST_VERSION} ⭐`);
   console.log(`   Started: ${new Date().toISOString()}`);
   console.log(`${'='.repeat(70)}\n`);
 
