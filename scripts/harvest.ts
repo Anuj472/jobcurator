@@ -3,6 +3,7 @@
  * Automated Job Harvester with Smart Lifecycle Management
  * - Fetches jobs daily from all configured companies
  * - Marks expired/closed jobs as inactive automatically
+ * - Detects internships/apprenticeships as separate experience level
  * - Keeps database fresh and accurate
  */
 
@@ -11,7 +12,7 @@ import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType } from '../types';
 
-type ExperienceLevel = 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
+type ExperienceLevel = 'Internship' | 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -59,21 +60,48 @@ const mapToJobType = (location: string | undefined, title: string | undefined): 
   return 'On-site';
 };
 
+/**
+ * Experience level detection with INTERNSHIP support
+ * Priority order: Internship > Executive > Lead > Senior > Entry > Mid (default)
+ */
 const mapToExperienceLevel = (title: string | undefined, description: string | undefined): ExperienceLevel => {
   const combined = `${title || ''} ${description || ''}`.toLowerCase();
   
+  // INTERNSHIP - Check FIRST (highest priority for students)
+  const internshipKeywords = [
+    'intern ',
+    'internship',
+    'apprentice',
+    'apprenticeship',
+    'co-op',
+    'coop',
+    'student',
+    'trainee',
+    'campus',
+    'new grad',
+    'new graduate',
+    'university program'
+  ];
+  if (internshipKeywords.some(kw => combined.includes(kw))) return 'Internship';
+  
+  // Executive level (C-suite, VP, Directors)
   const executiveKeywords = ['ceo', 'cto', 'coo', 'cfo', 'cmo', 'chief', 'vp ', 'vice president', 'executive director', 'managing director'];
   if (executiveKeywords.some(kw => combined.includes(kw))) return 'Executive';
   
+  // Lead level (Team leads, Principal, Staff+)
   const leadKeywords = ['lead ', 'principal', 'staff engineer', 'staff developer', 'architect', 'head of'];
   if (leadKeywords.some(kw => combined.includes(kw))) return 'Lead';
   
+  // Senior level
   const seniorKeywords = ['senior', 'sr.', 'sr ', 'expert'];
   if (seniorKeywords.some(kw => combined.includes(kw))) return 'Senior Level';
   
-  const entryKeywords = ['intern', 'junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate', 'trainee'];
+  // Entry level (Junior, Graduate - but NOT intern)
+  // Note: We already filtered out internships above
+  const entryKeywords = ['junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate'];
   if (entryKeywords.some(kw => combined.includes(kw))) return 'Entry Level';
   
+  // Default to Mid Level (most common for non-specified roles)
   return 'Mid Level';
 };
 
@@ -122,7 +150,7 @@ const getOrCreateCompanyId = async (
 };
 
 /**
- * NEW: Mark expired jobs as inactive
+ * Mark expired jobs as inactive
  * Jobs that are no longer in the ATS are marked as is_active: false
  */
 const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): Promise<number> => {
@@ -305,9 +333,15 @@ const harvestAndSync = async () => {
     console.log(`   ${cat}: ${count}`);
   });
   console.log(`\n🎯 Experience Level Distribution:`);
-  Object.entries(experienceStats).forEach(([level, count]) => {
-    console.log(`   ${level}: ${count}`);
-  });
+  Object.entries(experienceStats)
+    .sort((a, b) => {
+      // Custom sort order: Internship, Entry, Mid, Senior, Lead, Executive
+      const order = ['Internship', 'Entry Level', 'Mid Level', 'Senior Level', 'Lead', 'Executive'];
+      return order.indexOf(a[0]) - order.indexOf(b[0]);
+    })
+    .forEach(([level, count]) => {
+      console.log(`   ${level}: ${count}`);
+    });
   console.log(`${'='.repeat(70)}\n`);
 };
 
