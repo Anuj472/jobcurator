@@ -15,11 +15,31 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main  # Explicitly use main branch
+          fetch-depth: 1  # Only fetch latest commit
+      
+      - name: Verify latest code
+        run: |
+          echo "📌 Current commit:"
+          git log -1 --oneline
+          echo ""
+          echo "📄 Checking harvest.ts version:"
+          if grep -q "'Internship'" scripts/harvest.ts; then
+            echo "✅ Internship detection code found!"
+          else
+            echo "❌ WARNING: Internship detection code NOT found!"
+            exit 1
+          fi
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'  # Cache npm dependencies for faster builds
+      
+      - name: Clear any TypeScript cache
+        run: rm -rf node_modules/.cache || true
       
       - name: Install dependencies
         run: npm install
