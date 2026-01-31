@@ -1,8 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Automated Job Harvester - Fixed for acrossjobs filters
- * Runs daily to fetch and sync jobs from all configured companies
- * Ensures all fields required for acrossjobs filters are properly set
+ * Automated Job Harvester with Smart Lifecycle Management
+ * - Fetches jobs daily from all configured companies
+ * - Marks expired/closed jobs as inactive automatically
+ * - Keeps database fresh and accurate
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -23,7 +24,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Category mapping logic (same as App.tsx)
+// Category mapping logic
 const mapToJobCategory = (rawDept: string | undefined, title: string | undefined): JobCategory => {
   const combined = `${rawDept || ''} ${title || ''}`.toLowerCase();
   
@@ -48,7 +49,7 @@ const mapToJobCategory = (rawDept: string | undefined, title: string | undefined
   const itKeywords = ['engineer', 'developer', 'software', 'frontend', 'backend', 'devops', 'sre', 'architect', 'programming', 'cloud', 'security'];
   if (itKeywords.some(kw => combined.includes(kw))) return 'it';
   
-  return 'it'; // Default
+  return 'it';
 };
 
 const mapToJobType = (location: string | undefined, title: string | undefined): JobType => {
@@ -58,27 +59,21 @@ const mapToJobType = (location: string | undefined, title: string | undefined): 
   return 'On-site';
 };
 
-// NEW: Experience level detection based on job title
 const mapToExperienceLevel = (title: string | undefined, description: string | undefined): ExperienceLevel => {
   const combined = `${title || ''} ${description || ''}`.toLowerCase();
   
-  // Executive level (C-suite, VP, Directors)
   const executiveKeywords = ['ceo', 'cto', 'coo', 'cfo', 'cmo', 'chief', 'vp ', 'vice president', 'executive director', 'managing director'];
   if (executiveKeywords.some(kw => combined.includes(kw))) return 'Executive';
   
-  // Lead level (Team leads, Principal, Staff+)
   const leadKeywords = ['lead ', 'principal', 'staff engineer', 'staff developer', 'architect', 'head of'];
   if (leadKeywords.some(kw => combined.includes(kw))) return 'Lead';
   
-  // Senior level
   const seniorKeywords = ['senior', 'sr.', 'sr ', 'expert'];
   if (seniorKeywords.some(kw => combined.includes(kw))) return 'Senior Level';
   
-  // Entry level (Intern, Junior, Graduate, Associate)
   const entryKeywords = ['intern', 'junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate', 'trainee'];
   if (entryKeywords.some(kw => combined.includes(kw))) return 'Entry Level';
   
-  // Default to Mid Level (most common for non-specified roles)
   return 'Mid Level';
 };
 
@@ -90,7 +85,6 @@ const getOrCreateCompanyId = async (
   try {
     const slug = AtsService.generateSlug(companyName);
     
-    // Try to find existing company
     let { data: existing } = await supabase
       .from('companies')
       .select('id')
@@ -99,7 +93,6 @@ const getOrCreateCompanyId = async (
     
     if (existing) return existing.id;
 
-    // Create new company
     const { data: created, error } = await supabase
       .from('companies')
       .insert({ 
@@ -128,13 +121,52 @@ const getOrCreateCompanyId = async (
   }
 };
 
+/**
+ * NEW: Mark expired jobs as inactive
+ * Jobs that are no longer in the ATS are marked as is_active: false
+ */
+const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): Promise<number> => {
+  try {
+    if (activeApplyLinks.length === 0) {
+      console.log('   ⚠️ No active jobs to compare against');
+      return 0;
+    }
+
+    // Mark all jobs NOT in the current active list as inactive
+    const { data, error } = await supabase
+      .from('jobs')
+      .update({ is_active: false })
+      .eq('company_id', companyId)
+      .eq('is_active', true)  // Only update currently active jobs
+      .not('apply_link', 'in', `(${activeApplyLinks.map(link => `"${link}"`).join(',')})`)
+      .select('id');
+
+    if (error) {
+      console.error('   ❌ Error marking expired jobs:', error.message);
+      return 0;
+    }
+
+    const expiredCount = data?.length || 0;
+    if (expiredCount > 0) {
+      console.log(`   🔄 Marked ${expiredCount} expired jobs as inactive`);
+    }
+    return expiredCount;
+  } catch (err: any) {
+    console.error('   ❌ Exception marking expired jobs:', err.message);
+    return 0;
+  }
+};
+
 const harvestAndSync = async () => {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`🚀 JOB HARVESTER - ${new Date().toISOString()}`);
-  console.log(`${'='.repeat(60)}\n`);
+  console.log(`\n${'='.repeat(70)}`);
+  console.log(`🚀 JOB HARVESTER WITH LIFECYCLE MANAGEMENT`);
+  console.log(`   Started: ${new Date().toISOString()}`);
+  console.log(`${'='.repeat(70)}\n`);
 
   let totalFound = 0;
   let totalSynced = 0;
+  let totalUpdated = 0;
+  let totalExpired = 0;
   let totalFailed = 0;
   let categoryStats: Record<string, number> = {};
   let experienceStats: Record<string, number> = {};
@@ -153,10 +185,8 @@ const harvestAndSync = async () => {
         rawJobs = await AtsService.fetchAshbyJobs(company.identifier);
       }
 
-      console.log(`   Found ${rawJobs.length} jobs`);
+      console.log(`   Found ${rawJobs.length} active jobs on ATS`);
       totalFound += rawJobs.length;
-
-      if (rawJobs.length === 0) continue;
 
       // Get or create company
       const companyId = await getOrCreateCompanyId(
@@ -168,6 +198,13 @@ const harvestAndSync = async () => {
       if (!companyId) {
         console.error(`   ❌ Failed to get company ID`);
         totalFailed += rawJobs.length;
+        continue;
+      }
+
+      if (rawJobs.length === 0) {
+        // If company has zero jobs, mark all existing jobs as inactive
+        const expired = await markExpiredJobs(companyId, []);
+        totalExpired += expired;
         continue;
       }
 
@@ -186,7 +223,6 @@ const harvestAndSync = async () => {
         const jobType = mapToJobType(norm.location_city, norm.title);
         const experienceLevel = mapToExperienceLevel(norm.title, norm.description);
 
-        // Track stats
         categoryStats[category] = (categoryStats[category] || 0) + 1;
         experienceStats[experienceLevel || 'null'] = (experienceStats[experienceLevel || 'null'] || 0) + 1;
 
@@ -197,26 +233,35 @@ const harvestAndSync = async () => {
           location_city: norm.location_city || 'Remote',
           location_country: norm.location_country || 'Global',
           job_type: jobType,
-          experience_level: experienceLevel, // CRITICAL: Now properly set
+          experience_level: experienceLevel,
           apply_link: norm.apply_link!,
           description: norm.description || '',
-          is_active: true
+          is_active: true  // Mark as active since it's currently on ATS
         };
       }).filter(j => j.title && j.apply_link);
 
-      // Insert to database
-      const { data, error } = await supabase
+      // Collect all active apply links for this company
+      const activeApplyLinks = normalizedJobs.map(j => j.apply_link);
+
+      // STEP 1: Upsert current active jobs
+      const { data: upsertedData, error: upsertError } = await supabase
         .from('jobs')
         .upsert(normalizedJobs, { onConflict: 'apply_link' })
-        .select();
+        .select('id, apply_link');
 
-      if (error) {
-        console.error(`   ❌ Database error:`, error.message);
+      if (upsertError) {
+        console.error(`   ❌ Database error:`, upsertError.message);
         totalFailed += normalizedJobs.length;
-      } else {
-        console.log(`   ✅ Synced ${normalizedJobs.length} jobs`);
-        totalSynced += normalizedJobs.length;
+        continue;
       }
+
+      const syncedCount = upsertedData?.length || 0;
+      totalSynced += syncedCount;
+      console.log(`   ✅ Synced ${syncedCount} active jobs`);
+
+      // STEP 2: Mark jobs that are NO LONGER in ATS as inactive
+      const expiredCount = await markExpiredJobs(companyId, activeApplyLinks);
+      totalExpired += expiredCount;
 
       // Rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -227,12 +272,33 @@ const harvestAndSync = async () => {
     }
   }
 
-  console.log(`\n${'='.repeat(60)}`);
+  // STEP 3: Optional - Delete very old inactive jobs (older than 30 days)
+  console.log(`\n🧹 Cleaning up very old inactive jobs...`);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const { data: deletedJobs, error: deleteError } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('is_active', false)
+    .lt('updated_at', thirtyDaysAgo.toISOString())
+    .select('id');
+  
+  const deletedCount = deletedJobs?.length || 0;
+  if (deletedCount > 0) {
+    console.log(`   🗑️ Deleted ${deletedCount} jobs inactive for >30 days`);
+  } else {
+    console.log(`   ✅ No old inactive jobs to delete`);
+  }
+
+  console.log(`\n${'='.repeat(70)}`);
   console.log(`📊 HARVEST SUMMARY`);
-  console.log(`${'='.repeat(60)}`);
+  console.log(`${'='.repeat(70)}`);
   console.log(`   Companies processed: ${INITIAL_COMPANIES.length}`);
-  console.log(`   Jobs found: ${totalFound}`);
-  console.log(`   Jobs synced: ${totalSynced}`);
+  console.log(`   Jobs found on ATS: ${totalFound}`);
+  console.log(`   Jobs synced/updated: ${totalSynced}`);
+  console.log(`   Jobs marked expired: ${totalExpired}`);
+  console.log(`   Jobs deleted (>30d old): ${deletedCount}`);
   console.log(`   Jobs failed: ${totalFailed}`);
   console.log(`\n📂 Category Distribution:`);
   Object.entries(categoryStats).forEach(([cat, count]) => {
@@ -242,7 +308,7 @@ const harvestAndSync = async () => {
   Object.entries(experienceStats).forEach(([level, count]) => {
     console.log(`   ${level}: ${count}`);
   });
-  console.log(`${'='.repeat(60)}\n`);
+  console.log(`${'='.repeat(70)}\n`);
 };
 
 // Run the harvester
