@@ -6,6 +6,7 @@ export enum AtsPlatform {
 
 export type JobCategory = 'management' | 'it' | 'research-development' | 'sales' | 'marketing' | 'finance' | 'legal';
 export type JobType = 'Remote' | 'On-site' | 'Hybrid';
+export type ExperienceLevel = 'Internship' | 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
 
 export interface Company {
   id: string;
@@ -35,6 +36,7 @@ export interface Job {
   location_country?: string;
   salary_range?: string;
   job_type: JobType;
+  experience_level?: ExperienceLevel;  // Added for filtering by experience
   apply_link: string;
   description?: string;
   requirements?: string;
