@@ -23,6 +23,8 @@ interface SyncProgress {
   companyStats: Record<string, CompanySyncStatus>;
 }
 
+const JOBS_PER_PAGE = 50; // Pagination limit
+
 const App: React.FC = () => {
   const [discoveredJobs, setDiscoveredJobs] = useState<Partial<Job>[]>([]);
   const [syncedApplyLinks, setSyncedApplyLinks] = useState<Set<string>>(new Set());
@@ -33,36 +35,67 @@ const App: React.FC = () => {
   const [dbJobs, setDbJobs] = useState<Job[]>([]);
   const [progress, setProgress] = useState(0);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     fetchSyncedLinks();
-    if (activeTab === 'database') fetchDbJobs();
+    if (activeTab === 'database') {
+      setCurrentPage(0);
+      setDbJobs([]);
+      fetchDbJobs(0);
+    }
   }, [activeTab]);
 
   const fetchSyncedLinks = async () => {
     try {
-      const { data } = await supabase.from('jobs').select('apply_link');
+      const { data } = await supabase.from('jobs').select('apply_link').eq('is_active', true);
       if (data) setSyncedApplyLinks(new Set(data.map(j => j.apply_link)));
     } catch (e) {
       console.error('❌ Error fetching synced links:', e);
     }
   };
 
-  const fetchDbJobs = async () => {
+  const fetchDbJobs = async (page: number = 0, append: boolean = false) => {
     setLoading(true);
+    setDbError(null);
+    
     try {
-      const { data, error } = await supabase.from('jobs').select('*, company:companies(*)').order('created_at', { ascending: false });
-      if (error) {
-        console.error('❌ Error fetching DB jobs:', error);
-        setStatus(`Error: ${error.message}`);
-      } else if (data) {
-        setDbJobs(data as any[]);
+      const from = page * JOBS_PER_PAGE;
+      const to = from + JOBS_PER_PAGE - 1;
+      
+      const { data, error, count } = await supabase
+        .from('jobs')
+        .select('*, company:companies(*)', { count: 'exact' })
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      
+      if (error) throw error;
+      
+      if (data) {
+        if (append) {
+          setDbJobs(prev => [...prev, ...data as any[]]);
+        } else {
+          setDbJobs(data as any[]);
+        }
+        setHasMore(data.length === JOBS_PER_PAGE && (count || 0) > to + 1);
       }
     } catch (e: any) {
       console.error('❌ Exception fetching DB jobs:', e);
-      setStatus(`Error: ${e.message}`);
+      // User-friendly error message - NO sensitive info exposed
+      setDbError('Unable to load jobs. Please refresh the page or try again later.');
+      setDbJobs([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchDbJobs(nextPage, true);
   };
 
   const mapToJobCategory = (rawDept: string | undefined, title: string | undefined): JobCategory => {
@@ -450,7 +483,10 @@ const App: React.FC = () => {
     setStatus(`Sync complete! ✅ ${jobsSucceeded} jobs synced, ❌ ${jobsFailed} failed`);
     setPushingAll(false);
     fetchSyncedLinks();
-    if (activeTab === 'database') fetchDbJobs();
+    if (activeTab === 'database') {
+      setCurrentPage(0);
+      fetchDbJobs(0);
+    }
   };
 
   return (
@@ -509,6 +545,20 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {dbError && activeTab === 'database' && (
+          <div className="mb-8 bg-red-50 border-2 border-red-200 rounded-2xl p-8 text-center">
+            <div className="text-6xl mb-4">⚠️</div>
+            <h3 className="text-2xl font-black text-red-900 mb-2">Connection Error</h3>
+            <p className="text-red-700 mb-6">{dbError}</p>
+            <button 
+              onClick={() => fetchDbJobs(0)} 
+              className="bg-red-600 text-white px-8 py-3 rounded-xl text-xs font-black hover:bg-red-700 transition-all uppercase"
+            >
+              Retry Loading Jobs
+            </button>
+          </div>
+        )}
+
         <div className="mb-8">
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">{status}</p>
         </div>
@@ -522,6 +572,17 @@ const App: React.FC = () => {
             />
           ))}
         </div>
+
+        {activeTab === 'database' && hasMore && dbJobs.length > 0 && !loading && (
+          <div className="mt-12 text-center">
+            <button 
+              onClick={loadMore}
+              className="bg-indigo-600 text-white px-12 py-4 rounded-xl text-xs font-black hover:bg-indigo-700 transition-all uppercase shadow-lg"
+            >
+              Load More Jobs
+            </button>
+          </div>
+        )}
 
         {discoveredJobs.length === 0 && !loading && activeTab === 'discovery' && (
           <div className="py-48 text-center bg-white rounded-[3rem] border-4 border-dashed border-slate-200">
