@@ -25,8 +25,8 @@ jobs:
           git log -1 --oneline
           echo ""
           echo "📄 Checking harvest.ts version:"
-          if grep -q "'Internship'" scripts/harvest.ts; then
-            echo "✅ Internship detection code found!"
+          if grep -q "'internship'" scripts/harvest.ts; then
+            echo "✅ Internship detection code found (kebab-case)!"
           else
             echo "❌ WARNING: Internship detection code NOT found!"
             exit 1
