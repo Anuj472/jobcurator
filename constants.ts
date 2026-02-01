@@ -39,6 +39,32 @@ export const INITIAL_COMPANIES = [
   { name: "ClickUp", identifier: "clickup", platform: AtsPlatform.GREENHOUSE },
   { name: "Postman", identifier: "postman", platform: AtsPlatform.GREENHOUSE },
 
+  // ========== NEW VERIFIED GREENHOUSE COMPANIES ==========
+  { name: "SpaceX", identifier: "spacex", platform: AtsPlatform.GREENHOUSE },
+  { name: "Warby Parker", identifier: "warbyparker", platform: AtsPlatform.GREENHOUSE },
+  { name: "Snyk", identifier: "snyk", platform: AtsPlatform.GREENHOUSE },
+  { name: "Revolut", identifier: "revolut", platform: AtsPlatform.GREENHOUSE },
+  { name: "Klarna", identifier: "klarna", platform: AtsPlatform.GREENHOUSE },
+  { name: "HelloFresh", identifier: "hellofresh", platform: AtsPlatform.GREENHOUSE },
+  { name: "Substack", identifier: "substack", platform: AtsPlatform.GREENHOUSE },
+  { name: "SeatGeek", identifier: "seatgeek", platform: AtsPlatform.GREENHOUSE },
+  { name: "Scribd", identifier: "scribd", platform: AtsPlatform.GREENHOUSE },
+  { name: "ClassPass", identifier: "classpass", platform: AtsPlatform.GREENHOUSE },
+  { name: "Foursquare", identifier: "foursquare", platform: AtsPlatform.GREENHOUSE },
+  { name: "Vimeo", identifier: "vimeo", platform: AtsPlatform.GREENHOUSE },
+  { name: "TripAdvisor", identifier: "tripadvisor", platform: AtsPlatform.GREENHOUSE },
+  { name: "SurveyMonkey", identifier: "surveymonkey", platform: AtsPlatform.GREENHOUSE },
+  { name: "InVision", identifier: "invision", platform: AtsPlatform.GREENHOUSE },
+  { name: "Gannett", identifier: "gannett", platform: AtsPlatform.GREENHOUSE },
+  { name: "Hearst", identifier: "hearst", platform: AtsPlatform.GREENHOUSE },
+  { name: "TechStyle", identifier: "techstyle", platform: AtsPlatform.GREENHOUSE },
+  { name: "Thumbtack", identifier: "thumbtack", platform: AtsPlatform.GREENHOUSE },
+  { name: "Better.com", identifier: "better", platform: AtsPlatform.GREENHOUSE },
+  { name: "Carta", identifier: "carta", platform: AtsPlatform.GREENHOUSE },
+  { name: "ThoughtWorks", identifier: "thoughtworks", platform: AtsPlatform.GREENHOUSE },
+  { name: "Myntra", identifier: "myntra", platform: AtsPlatform.GREENHOUSE },
+  { name: "Canonical", identifier: "canonical", platform: AtsPlatform.GREENHOUSE },
+
   // ========== FINANCE & FINTECH (Finance, Compliance, Legal) ==========
   { name: "Ramp", identifier: "ramp", platform: AtsPlatform.GREENHOUSE },
   { name: "Mercury", identifier: "mercury", platform: AtsPlatform.GREENHOUSE },
@@ -71,9 +97,7 @@ export const INITIAL_COMPANIES = [
   { name: "Monday.com", identifier: "monday", platform: AtsPlatform.GREENHOUSE },
   { name: "Amplitude", identifier: "amplitude", platform: AtsPlatform.GREENHOUSE },
   { name: "Mixpanel", identifier: "mixpanel", platform: AtsPlatform.GREENHOUSE },
-  { name: "Segment", identifier: "segment", platform: AtsPlatform.GREENHOUSE },
   { name: "Intercom", identifier: "intercom", platform: AtsPlatform.GREENHOUSE },
-  { name: "Zapier", identifier: "zapier", platform: AtsPlatform.GREENHOUSE },
   { name: "Airtable", identifier: "airtable", platform: AtsPlatform.GREENHOUSE },
   { name: "Miro", identifier: "miro", platform: AtsPlatform.GREENHOUSE },
 
@@ -95,15 +119,14 @@ export const INITIAL_COMPANIES = [
   { name: "Docusign", identifier: "docusign", platform: AtsPlatform.LEVER },
   { name: "Evernote", identifier: "evernote", platform: AtsPlatform.LEVER },
   { name: "Yelp", identifier: "yelp", platform: AtsPlatform.LEVER },
-  { name: "Box", identifier: "box", platform: AtsPlatform.LEVER },
-  { name: "Eventbrite", identifier: "eventbrite", platform: AtsPlatform.LEVER },
   { name: "Zepto", identifier: "zepto", platform: AtsPlatform.LEVER },
 
   // ========== MARKETING & MEDIA COMPANIES ==========
-  { name: "BuzzFeed", identifier: "buzzfeed", platform: AtsPlatform.LEVER },
-  { name: "Vice Media", identifier: "vice", platform: AtsPlatform.LEVER },
+  // Note: Some of these are actually Greenhouse (verified above)
+  { name: "BuzzFeed", identifier: "buzzfeed", platform: AtsPlatform.GREENHOUSE },
+  { name: "Vice Media", identifier: "vicemedia", platform: AtsPlatform.GREENHOUSE },
+  { name: "Vox Media", identifier: "voxmedia", platform: AtsPlatform.GREENHOUSE },
   { name: "The New York Times", identifier: "nytimes", platform: AtsPlatform.LEVER },
-  { name: "Vox Media", identifier: "voxmedia", platform: AtsPlatform.LEVER },
 
   // ========== ASHBY - MODERN STARTUPS ==========
   { name: "Notion", identifier: "notion", platform: AtsPlatform.ASHBY },
