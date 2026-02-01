@@ -36,7 +36,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'  # Cache npm dependencies for faster builds
+          # Removed cache: 'npm' as we don't have a package-lock.json file
       
       - name: Clear any TypeScript cache
         run: rm -rf node_modules/.cache || true
