@@ -1,21 +1,20 @@
 #!/usr/bin/env tsx
 /**
  * Automated Job Harvester with Smart Lifecycle Management
- * VERSION: 2.0 - WITH INTERNSHIP DETECTION
+ * VERSION: 2.1 - FIXED EXPERIENCE LEVEL FORMAT
  * - Fetches jobs daily from all configured companies
  * - Marks expired/closed jobs as inactive automatically
  * - Detects internships/apprenticeships as separate experience level
+ * - Uses kebab-case for experience levels to match database constraint
  * - Keeps database fresh and accurate
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
-import { Job, AtsPlatform, JobCategory, JobType } from '../types';
+import { Job, AtsPlatform, JobCategory, JobType, ExperienceLevel } from '../types';
 
-type ExperienceLevel = 'Internship' | 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
-
-const HARVEST_VERSION = '2.0-INTERNSHIP';
+const HARVEST_VERSION = '2.1-FIXED-EXPERIENCE-LEVELS';
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -65,7 +64,8 @@ const mapToJobType = (location: string | undefined, title: string | undefined): 
 
 /**
  * Experience level detection with INTERNSHIP support
- * Priority order: Internship > Executive > Lead > Senior > Entry > Mid (default)
+ * FIXED: Returns kebab-case values to match database constraint
+ * Priority order: internship > executive > lead > senior-level > entry-level > mid-level (default)
  */
 const mapToExperienceLevel = (title: string | undefined, description: string | undefined): ExperienceLevel => {
   const combined = `${title || ''} ${description || ''}`.toLowerCase();
@@ -85,27 +85,27 @@ const mapToExperienceLevel = (title: string | undefined, description: string | u
     'new graduate',
     'university program'
   ];
-  if (internshipKeywords.some(kw => combined.includes(kw))) return 'Internship';
+  if (internshipKeywords.some(kw => combined.includes(kw))) return 'internship';
   
   // Executive level (C-suite, VP, Directors)
   const executiveKeywords = ['ceo', 'cto', 'coo', 'cfo', 'cmo', 'chief', 'vp ', 'vice president', 'executive director', 'managing director'];
-  if (executiveKeywords.some(kw => combined.includes(kw))) return 'Executive';
+  if (executiveKeywords.some(kw => combined.includes(kw))) return 'executive';
   
   // Lead level (Team leads, Principal, Staff+)
   const leadKeywords = ['lead ', 'principal', 'staff engineer', 'staff developer', 'architect', 'head of'];
-  if (leadKeywords.some(kw => combined.includes(kw))) return 'Lead';
+  if (leadKeywords.some(kw => combined.includes(kw))) return 'lead';
   
   // Senior level
   const seniorKeywords = ['senior', 'sr.', 'sr ', 'expert'];
-  if (seniorKeywords.some(kw => combined.includes(kw))) return 'Senior Level';
+  if (seniorKeywords.some(kw => combined.includes(kw))) return 'senior-level';
   
   // Entry level (Junior, Graduate - but NOT intern)
   // Note: We already filtered out internships above
   const entryKeywords = ['junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate'];
-  if (entryKeywords.some(kw => combined.includes(kw))) return 'Entry Level';
+  if (entryKeywords.some(kw => combined.includes(kw))) return 'entry-level';
   
   // Default to Mid Level (most common for non-specified roles)
-  return 'Mid Level';
+  return 'mid-level';
 };
 
 const getOrCreateCompanyId = async (
@@ -339,8 +339,8 @@ const harvestAndSync = async () => {
   console.log(`\n🎯 Experience Level Distribution:`);
   Object.entries(experienceStats)
     .sort((a, b) => {
-      // Custom sort order: Internship, Entry, Mid, Senior, Lead, Executive
-      const order = ['Internship', 'Entry Level', 'Mid Level', 'Senior Level', 'Lead', 'Executive'];
+      // Custom sort order: internship, entry-level, mid-level, senior-level, lead, executive
+      const order = ['internship', 'entry-level', 'mid-level', 'senior-level', 'lead', 'executive'];
       return order.indexOf(a[0]) - order.indexOf(b[0]);
     })
     .forEach(([level, count]) => {
