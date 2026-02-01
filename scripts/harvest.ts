@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /**
  * Automated Job Harvester with Smart Lifecycle Management
- * VERSION: 2.2 - REMOVED INTERNSHIP LEVEL
+ * VERSION: 2.3 - TITLE CASE EXPERIENCE LEVELS
  * - Fetches jobs daily from all configured companies
  * - Marks expired/closed jobs as inactive automatically
- * - Uses kebab-case for experience levels to match database constraint
+ * - Uses Title Case with spaces for experience levels to match database
  * - Keeps database fresh and accurate
  */
 
@@ -13,14 +13,14 @@ import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType, ExperienceLevel } from '../types';
 
-const HARVEST_VERSION = '2.2-NO-INTERNSHIP';
+const HARVEST_VERSION = '2.3-TITLE-CASE';
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('❌ Missing Supabase credentials!');
+  console.error('\u274c Missing Supabase credentials!');
   process.exit(1);
 }
 
@@ -62,30 +62,30 @@ const mapToJobType = (location: string | undefined, title: string | undefined): 
 };
 
 /**
- * Experience level detection (kebab-case)
- * Priority order: executive > lead > senior-level > entry-level > mid-level (default)
+ * Experience level detection (Title Case with spaces)
+ * Priority order: Executive > Lead > Senior Level > Entry Level > Mid Level (default)
  */
 const mapToExperienceLevel = (title: string | undefined, description: string | undefined): ExperienceLevel => {
   const combined = `${title || ''} ${description || ''}`.toLowerCase();
   
   // Executive level (C-suite, VP, Directors)
   const executiveKeywords = ['ceo', 'cto', 'coo', 'cfo', 'cmo', 'chief', 'vp ', 'vice president', 'executive director', 'managing director'];
-  if (executiveKeywords.some(kw => combined.includes(kw))) return 'executive';
+  if (executiveKeywords.some(kw => combined.includes(kw))) return 'Executive';
   
   // Lead level (Team leads, Principal, Staff+)
   const leadKeywords = ['lead ', 'principal', 'staff engineer', 'staff developer', 'architect', 'head of'];
-  if (leadKeywords.some(kw => combined.includes(kw))) return 'lead';
+  if (leadKeywords.some(kw => combined.includes(kw))) return 'Lead';
   
   // Senior level
   const seniorKeywords = ['senior', 'sr.', 'sr ', 'expert'];
-  if (seniorKeywords.some(kw => combined.includes(kw))) return 'senior-level';
+  if (seniorKeywords.some(kw => combined.includes(kw))) return 'Senior Level';
   
-  // Entry level (Junior, Graduate, New Grad, Intern - all mapped to entry-level)
+  // Entry level (Junior, Graduate, New Grad, Intern - all mapped to Entry Level)
   const entryKeywords = ['junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate', 'intern', 'new grad', 'apprentice'];
-  if (entryKeywords.some(kw => combined.includes(kw))) return 'entry-level';
+  if (entryKeywords.some(kw => combined.includes(kw))) return 'Entry Level';
   
   // Default to Mid Level (most common for non-specified roles)
-  return 'mid-level';
+  return 'Mid Level';
 };
 
 const getOrCreateCompanyId = async (
@@ -120,14 +120,14 @@ const getOrCreateCompanyId = async (
       .single();
     
     if (error) {
-      console.error(`❌ Company creation failed for ${companyName}:`, error);
+      console.error(`\u274c Company creation failed for ${companyName}:`, error);
       return null;
     }
     
-    console.log(`✅ Created company: ${companyName}`);
+    console.log(`\u2705 Created company: ${companyName}`);
     return created?.id || null;
   } catch (err) {
-    console.error(`❌ Error in getOrCreateCompanyId:`, err);
+    console.error(`\u274c Error in getOrCreateCompanyId:`, err);
     return null;
   }
 };
@@ -139,7 +139,7 @@ const getOrCreateCompanyId = async (
 const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): Promise<number> => {
   try {
     if (activeApplyLinks.length === 0) {
-      console.log('   ⚠️ No active jobs to compare against');
+      console.log('   \u26a0\ufe0f No active jobs to compare against');
       return 0;
     }
 
@@ -153,25 +153,25 @@ const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): P
       .select('id');
 
     if (error) {
-      console.error('   ❌ Error marking expired jobs:', error.message);
+      console.error('   \u274c Error marking expired jobs:', error.message);
       return 0;
     }
 
     const expiredCount = data?.length || 0;
     if (expiredCount > 0) {
-      console.log(`   🔄 Marked ${expiredCount} expired jobs as inactive`);
+      console.log(`   \ud83d\udd04 Marked ${expiredCount} expired jobs as inactive`);
     }
     return expiredCount;
   } catch (err: any) {
-    console.error('   ❌ Exception marking expired jobs:', err.message);
+    console.error('   \u274c Exception marking expired jobs:', err.message);
     return 0;
   }
 };
 
 const harvestAndSync = async () => {
   console.log(`\n${'='.repeat(70)}`);
-  console.log(`🚀 JOB HARVESTER WITH LIFECYCLE MANAGEMENT`);
-  console.log(`   Version: ${HARVEST_VERSION} ⭐`);
+  console.log(`\ud83d\ude80 JOB HARVESTER WITH LIFECYCLE MANAGEMENT`);
+  console.log(`   Version: ${HARVEST_VERSION} \u2b50`);
   console.log(`   Started: ${new Date().toISOString()}`);
   console.log(`${'='.repeat(70)}\n`);
 
@@ -185,7 +185,7 @@ const harvestAndSync = async () => {
 
   for (const company of INITIAL_COMPANIES) {
     try {
-      console.log(`\n📦 Processing: ${company.name}`);
+      console.log(`\n\ud83d\udce6 Processing: ${company.name}`);
       
       // Fetch jobs from ATS
       let rawJobs: any[] = [];
@@ -208,7 +208,7 @@ const harvestAndSync = async () => {
       );
 
       if (!companyId) {
-        console.error(`   ❌ Failed to get company ID`);
+        console.error(`   \u274c Failed to get company ID`);
         totalFailed += rawJobs.length;
         continue;
       }
@@ -262,14 +262,14 @@ const harvestAndSync = async () => {
         .select('id, apply_link');
 
       if (upsertError) {
-        console.error(`   ❌ Database error:`, upsertError.message);
+        console.error(`   \u274c Database error:`, upsertError.message);
         totalFailed += normalizedJobs.length;
         continue;
       }
 
       const syncedCount = upsertedData?.length || 0;
       totalSynced += syncedCount;
-      console.log(`   ✅ Synced ${syncedCount} active jobs`);
+      console.log(`   \u2705 Synced ${syncedCount} active jobs`);
 
       // STEP 2: Mark jobs that are NO LONGER in ATS as inactive
       const expiredCount = await markExpiredJobs(companyId, activeApplyLinks);
@@ -279,13 +279,13 @@ const harvestAndSync = async () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
     } catch (err: any) {
-      console.error(`   ❌ Error processing ${company.name}:`, err.message);
+      console.error(`   \u274c Error processing ${company.name}:`, err.message);
       totalFailed++;
     }
   }
 
   // STEP 3: Optional - Delete very old inactive jobs (older than 30 days)
-  console.log(`\n🧹 Cleaning up very old inactive jobs...`);
+  console.log(`\n\ud83e\uddf9 Cleaning up very old inactive jobs...`);
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
@@ -298,13 +298,13 @@ const harvestAndSync = async () => {
   
   const deletedCount = deletedJobs?.length || 0;
   if (deletedCount > 0) {
-    console.log(`   🗑️ Deleted ${deletedCount} jobs inactive for >30 days`);
+    console.log(`   \ud83d\uddd1\ufe0f Deleted ${deletedCount} jobs inactive for >30 days`);
   } else {
-    console.log(`   ✅ No old inactive jobs to delete`);
+    console.log(`   \u2705 No old inactive jobs to delete`);
   }
 
   console.log(`\n${'='.repeat(70)}`);
-  console.log(`📊 HARVEST SUMMARY`);
+  console.log(`\ud83d\udcca HARVEST SUMMARY`);
   console.log(`${'='.repeat(70)}`);
   console.log(`   Companies processed: ${INITIAL_COMPANIES.length}`);
   console.log(`   Jobs found on ATS: ${totalFound}`);
@@ -312,15 +312,15 @@ const harvestAndSync = async () => {
   console.log(`   Jobs marked expired: ${totalExpired}`);
   console.log(`   Jobs deleted (>30d old): ${deletedCount}`);
   console.log(`   Jobs failed: ${totalFailed}`);
-  console.log(`\n📂 Category Distribution:`);
+  console.log(`\n\ud83d\udcc2 Category Distribution:`);
   Object.entries(categoryStats).forEach(([cat, count]) => {
     console.log(`   ${cat}: ${count}`);
   });
-  console.log(`\n🎯 Experience Level Distribution:`);
+  console.log(`\n\ud83c\udfaf Experience Level Distribution:`);
   Object.entries(experienceStats)
     .sort((a, b) => {
-      // Custom sort order: entry-level, mid-level, senior-level, lead, executive
-      const order = ['entry-level', 'mid-level', 'senior-level', 'lead', 'executive'];
+      // Custom sort order: Entry Level, Mid Level, Senior Level, Lead, Executive
+      const order = ['Entry Level', 'Mid Level', 'Senior Level', 'Lead', 'Executive'];
       return order.indexOf(a[0]) - order.indexOf(b[0]);
     })
     .forEach(([level, count]) => {
@@ -332,10 +332,10 @@ const harvestAndSync = async () => {
 // Run the harvester
 harvestAndSync()
   .then(() => {
-    console.log('✅ Harvest completed successfully');
+    console.log('\u2705 Harvest completed successfully');
     process.exit(0);
   })
   .catch((err) => {
-    console.error('❌ Harvest failed:', err);
+    console.error('\u274c Harvest failed:', err);
     process.exit(1);
   });
