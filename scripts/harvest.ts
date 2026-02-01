@@ -1,10 +1,9 @@
 #!/usr/bin/env tsx
 /**
  * Automated Job Harvester with Smart Lifecycle Management
- * VERSION: 2.1 - FIXED EXPERIENCE LEVEL FORMAT
+ * VERSION: 2.2 - REMOVED INTERNSHIP LEVEL
  * - Fetches jobs daily from all configured companies
  * - Marks expired/closed jobs as inactive automatically
- * - Detects internships/apprenticeships as separate experience level
  * - Uses kebab-case for experience levels to match database constraint
  * - Keeps database fresh and accurate
  */
@@ -14,7 +13,7 @@ import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType, ExperienceLevel } from '../types';
 
-const HARVEST_VERSION = '2.1-FIXED-EXPERIENCE-LEVELS';
+const HARVEST_VERSION = '2.2-NO-INTERNSHIP';
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -63,29 +62,11 @@ const mapToJobType = (location: string | undefined, title: string | undefined): 
 };
 
 /**
- * Experience level detection with INTERNSHIP support
- * FIXED: Returns kebab-case values to match database constraint
- * Priority order: internship > executive > lead > senior-level > entry-level > mid-level (default)
+ * Experience level detection (kebab-case)
+ * Priority order: executive > lead > senior-level > entry-level > mid-level (default)
  */
 const mapToExperienceLevel = (title: string | undefined, description: string | undefined): ExperienceLevel => {
   const combined = `${title || ''} ${description || ''}`.toLowerCase();
-  
-  // INTERNSHIP - Check FIRST (highest priority for students)
-  const internshipKeywords = [
-    'intern ',
-    'internship',
-    'apprentice',
-    'apprenticeship',
-    'co-op',
-    'coop',
-    'student',
-    'trainee',
-    'campus',
-    'new grad',
-    'new graduate',
-    'university program'
-  ];
-  if (internshipKeywords.some(kw => combined.includes(kw))) return 'internship';
   
   // Executive level (C-suite, VP, Directors)
   const executiveKeywords = ['ceo', 'cto', 'coo', 'cfo', 'cmo', 'chief', 'vp ', 'vice president', 'executive director', 'managing director'];
@@ -99,9 +80,8 @@ const mapToExperienceLevel = (title: string | undefined, description: string | u
   const seniorKeywords = ['senior', 'sr.', 'sr ', 'expert'];
   if (seniorKeywords.some(kw => combined.includes(kw))) return 'senior-level';
   
-  // Entry level (Junior, Graduate - but NOT intern)
-  // Note: We already filtered out internships above
-  const entryKeywords = ['junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate'];
+  // Entry level (Junior, Graduate, New Grad, Intern - all mapped to entry-level)
+  const entryKeywords = ['junior', 'jr.', 'jr ', 'graduate', 'entry', 'associate', 'intern', 'new grad', 'apprentice'];
   if (entryKeywords.some(kw => combined.includes(kw))) return 'entry-level';
   
   // Default to Mid Level (most common for non-specified roles)
@@ -339,8 +319,8 @@ const harvestAndSync = async () => {
   console.log(`\n🎯 Experience Level Distribution:`);
   Object.entries(experienceStats)
     .sort((a, b) => {
-      // Custom sort order: internship, entry-level, mid-level, senior-level, lead, executive
-      const order = ['internship', 'entry-level', 'mid-level', 'senior-level', 'lead', 'executive'];
+      // Custom sort order: entry-level, mid-level, senior-level, lead, executive
+      const order = ['entry-level', 'mid-level', 'senior-level', 'lead', 'executive'];
       return order.indexOf(a[0]) - order.indexOf(b[0]);
     })
     .forEach(([level, count]) => {
