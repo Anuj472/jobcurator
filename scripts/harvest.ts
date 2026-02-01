@@ -1,10 +1,11 @@
 #!/usr/bin/env tsx
 /**
  * Automated Job Harvester with Smart Lifecycle Management
- * VERSION: 2.3 - TITLE CASE EXPERIENCE LEVELS
+ * VERSION: 2.4 - FIXED EXPIRED JOBS QUERY
  * - Fetches jobs daily from all configured companies
  * - Marks expired/closed jobs as inactive automatically
  * - Uses Title Case with spaces for experience levels to match database
+ * - Fixed array handling for marking expired jobs
  * - Keeps database fresh and accurate
  */
 
@@ -13,7 +14,7 @@ import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType, ExperienceLevel } from '../types';
 
-const HARVEST_VERSION = '2.3-TITLE-CASE';
+const HARVEST_VERSION = '2.4-FIXED-EXPIRED-QUERY';
 
 // Environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL!;
@@ -97,7 +98,7 @@ const getOrCreateCompanyId = async (
     const slug = AtsService.generateSlug(companyName);
     
     let { data: existing } = await supabase
-      .from('companies')
+      .from('jobs')
       .select('id')
       .eq('slug', slug)
       .maybeSingle();
@@ -134,7 +135,7 @@ const getOrCreateCompanyId = async (
 
 /**
  * Mark expired jobs as inactive
- * Jobs that are no longer in the ATS are marked as is_active: false
+ * FIXED: Fetch and filter approach instead of complex NOT IN query
  */
 const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): Promise<number> => {
   try {
@@ -143,25 +144,45 @@ const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): P
       return 0;
     }
 
-    // Mark all jobs NOT in the current active list as inactive
-    const { data, error } = await supabase
+    // Fetch all currently active jobs for this company
+    const { data: existingJobs, error: fetchError } = await supabase
       .from('jobs')
-      .update({ is_active: false })
+      .select('id, apply_link')
       .eq('company_id', companyId)
-      .eq('is_active', true)  // Only update currently active jobs
-      .not('apply_link', 'in', `(${activeApplyLinks.map(link => `"${link}"`).join(',')})`)
-      .select('id');
+      .eq('is_active', true);
 
-    if (error) {
-      console.error('   \u274c Error marking expired jobs:', error.message);
+    if (fetchError) {
+      console.error('   \u274c Error fetching existing jobs:', fetchError.message);
       return 0;
     }
 
-    const expiredCount = data?.length || 0;
-    if (expiredCount > 0) {
-      console.log(`   \ud83d\udd04 Marked ${expiredCount} expired jobs as inactive`);
+    if (!existingJobs || existingJobs.length === 0) {
+      return 0;
     }
-    return expiredCount;
+
+    // Find jobs that are NO LONGER in the active list
+    const activeLinksSet = new Set(activeApplyLinks);
+    const expiredJobIds = existingJobs
+      .filter(job => !activeLinksSet.has(job.apply_link))
+      .map(job => job.id);
+
+    if (expiredJobIds.length === 0) {
+      return 0;
+    }
+
+    // Mark them as inactive
+    const { error: updateError } = await supabase
+      .from('jobs')
+      .update({ is_active: false })
+      .in('id', expiredJobIds);
+
+    if (updateError) {
+      console.error('   \u274c Error updating expired jobs:', updateError.message);
+      return 0;
+    }
+
+    console.log(`   \ud83d\udd04 Marked ${expiredJobIds.length} expired jobs as inactive`);
+    return expiredJobIds.length;
   } catch (err: any) {
     console.error('   \u274c Exception marking expired jobs:', err.message);
     return 0;
