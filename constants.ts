@@ -4,11 +4,10 @@ export const INITIAL_COMPANIES = [
   // ========== TECH COMPANIES (IT + All Departments) ==========
   // GREENHOUSE - BIG TECH & HIGH GROWTH
   { name: "Airbnb", identifier: "airbnb", platform: AtsPlatform.GREENHOUSE },
-  { name: "Uber", identifier: "uber", platform: AtsPlatform.GREENHOUSE },
   { name: "Stripe", identifier: "stripe", platform: AtsPlatform.GREENHOUSE },
   { name: "Twitch", identifier: "twitch", platform: AtsPlatform.GREENHOUSE },
   { name: "GitLab", identifier: "gitlab", platform: AtsPlatform.GREENHOUSE },
-  { name: "DoorDash", identifier: "doordash", platform: AtsPlatform.GREENHOUSE },
+  { name: "DoorDash", identifier: "doordashsoftware", platform: AtsPlatform.GREENHOUSE }, // Fixed!
   { name: "Pinterest", identifier: "pinterest", platform: AtsPlatform.GREENHOUSE },
   { name: "Robinhood", identifier: "robinhood", platform: AtsPlatform.GREENHOUSE },
   { name: "Coinbase", identifier: "coinbase", platform: AtsPlatform.GREENHOUSE },
@@ -92,8 +91,6 @@ export const INITIAL_COMPANIES = [
 
   // ========== SALES & MARKETING FOCUSED ==========
   { name: "HubSpot", identifier: "hubspot", platform: AtsPlatform.GREENHOUSE },
-  { name: "Salesforce", identifier: "salesforce", platform: AtsPlatform.GREENHOUSE },
-  { name: "Snowflake", identifier: "snowflake", platform: AtsPlatform.GREENHOUSE },
   { name: "Monday.com", identifier: "monday", platform: AtsPlatform.GREENHOUSE },
   { name: "Amplitude", identifier: "amplitude", platform: AtsPlatform.GREENHOUSE },
   { name: "Mixpanel", identifier: "mixpanel", platform: AtsPlatform.GREENHOUSE },
@@ -122,7 +119,6 @@ export const INITIAL_COMPANIES = [
   { name: "Zepto", identifier: "zepto", platform: AtsPlatform.LEVER },
 
   // ========== MARKETING & MEDIA COMPANIES ==========
-  // Note: Some of these are actually Greenhouse (verified above)
   { name: "BuzzFeed", identifier: "buzzfeed", platform: AtsPlatform.GREENHOUSE },
   { name: "Vice Media", identifier: "vicemedia", platform: AtsPlatform.GREENHOUSE },
   { name: "Vox Media", identifier: "voxmedia", platform: AtsPlatform.GREENHOUSE },
@@ -139,4 +135,35 @@ export const INITIAL_COMPANIES = [
   { name: "Anthropic", identifier: "anthropic", platform: AtsPlatform.ASHBY },
   { name: "Perplexity", identifier: "perplexity", platform: AtsPlatform.ASHBY },
   { name: "Scale AI", identifier: "scale", platform: AtsPlatform.ASHBY },
+  { name: "Snowflake", identifier: "snowflake", platform: AtsPlatform.ASHBY }, // Verified working!
+
+  // ========== WORKDAY RSS - ENTERPRISE COMPANIES ==========
+  { 
+    name: "Uber", 
+    identifier: "uber", 
+    platform: AtsPlatform.WORKDAY,
+    workday_domain: "uber.wd1.myworkdayjobs.com",
+    workday_site_id: "Uber_Careers"
+  },
+  { 
+    name: "Salesforce", 
+    identifier: "salesforce", 
+    platform: AtsPlatform.WORKDAY,
+    workday_domain: "salesforce.wd1.myworkdayjobs.com",
+    workday_site_id: "External_Career_Site"
+  },
+  { 
+    name: "Nvidia", 
+    identifier: "nvidia", 
+    platform: AtsPlatform.WORKDAY,
+    workday_domain: "nvidia.wd5.myworkdayjobs.com",
+    workday_site_id: "NVIDIAExternalCareerSite"
+  },
+  { 
+    name: "Mastercard", 
+    identifier: "mastercard", 
+    platform: AtsPlatform.WORKDAY,
+    workday_domain: "mastercard.wd1.myworkdayjobs.com",
+    workday_site_id: "CorporateCareers"
+  },
 ];
