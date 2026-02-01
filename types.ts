@@ -6,8 +6,8 @@ export enum AtsPlatform {
 
 export type JobCategory = 'management' | 'it' | 'research-development' | 'sales' | 'marketing' | 'finance' | 'legal';
 export type JobType = 'Remote' | 'On-site' | 'Hybrid';
-// Experience levels without internship
-export type ExperienceLevel = 'entry-level' | 'mid-level' | 'senior-level' | 'lead' | 'executive' | null;
+// Fixed: Title Case with spaces to match database constraint
+export type ExperienceLevel = 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Lead' | 'Executive' | null;
 
 export interface Company {
   id: string;
