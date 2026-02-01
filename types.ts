@@ -1,7 +1,8 @@
 export enum AtsPlatform {
   GREENHOUSE = 'greenhouse',
   LEVER = 'lever',
-  ASHBY = 'ashby'
+  ASHBY = 'ashby',
+  WORKDAY = 'workday'  // Added for RSS-based Workday feeds
 }
 
 export type JobCategory = 'management' | 'it' | 'research-development' | 'sales' | 'marketing' | 'finance' | 'legal';
@@ -26,6 +27,9 @@ export interface Company {
   verified?: boolean;  // Manual verification flag
   active?: boolean;
   last_sync_at?: string;
+  // Workday-specific fields
+  workday_domain?: string;  // e.g., "uber.wd1.myworkdayjobs.com"
+  workday_site_id?: string; // e.g., "Uber_Careers"
 }
 
 export interface Job {
