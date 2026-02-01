@@ -25,10 +25,10 @@ jobs:
           git log -1 --oneline
           echo ""
           echo "📄 Checking harvest.ts version:"
-          if grep -q "'internship'" scripts/harvest.ts; then
-            echo "✅ Internship detection code found (kebab-case)!"
+          if grep -q "mapToExperienceLevel" scripts/harvest.ts; then
+            echo "✅ Experience level mapping found!"
           else
-            echo "❌ WARNING: Internship detection code NOT found!"
+            echo "❌ WARNING: Experience level mapping NOT found!"
             exit 1
           fi
       
@@ -36,7 +36,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Removed cache: 'npm' as we don't have a package-lock.json file
       
       - name: Clear any TypeScript cache
         run: rm -rf node_modules/.cache || true
