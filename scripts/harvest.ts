@@ -98,7 +98,7 @@ const getOrCreateCompanyId = async (
     const slug = AtsService.generateSlug(companyName);
     
     let { data: existing } = await supabase
-      .from('jobs')
+      .from('companies')
       .select('id')
       .eq('slug', slug)
       .maybeSingle();
