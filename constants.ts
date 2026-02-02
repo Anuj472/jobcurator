@@ -89,6 +89,53 @@ export const INITIAL_COMPANIES = [
   { name: "Chargebee", identifier: "chargebee", platform: AtsPlatform.GREENHOUSE },
   { name: "Zerodha", identifier: "zerodha", platform: AtsPlatform.GREENHOUSE },
 
+  // ========== NEW INDIAN FINTECH & BANKING ==========
+  { name: "Navi", identifier: "navi", platform: AtsPlatform.GREENHOUSE },
+  { name: "Jupiter", identifier: "jupiter", platform: AtsPlatform.GREENHOUSE },
+  { name: "Slice", identifier: "slice", platform: AtsPlatform.GREENHOUSE },
+  { name: "Smallcase", identifier: "smallcase", platform: AtsPlatform.GREENHOUSE },
+  { name: "CoinSwitch", identifier: "coinswitch", platform: AtsPlatform.GREENHOUSE },
+  { name: "Zeta", identifier: "zeta", platform: AtsPlatform.GREENHOUSE },
+  { name: "Khatabook", identifier: "khatabook", platform: AtsPlatform.LEVER },
+  { name: "FamPay", identifier: "fampay", platform: AtsPlatform.GREENHOUSE },
+  { name: "Fi Money", identifier: "epifi", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== INDIAN E-COMMERCE & DELIVERY ==========
+  { name: "Zepto", identifier: "zepto", platform: AtsPlatform.LEVER },
+  { name: "Spinny", identifier: "spinny", platform: AtsPlatform.LEVER },
+  { name: "Cars24", identifier: "cars24", platform: AtsPlatform.GREENHOUSE },
+  { name: "Lenskart", identifier: "lenskart", platform: AtsPlatform.GREENHOUSE },
+  { name: "Tata 1mg", identifier: "1mg", platform: AtsPlatform.GREENHOUSE },
+  { name: "Urban Company", identifier: "urbancompany", platform: AtsPlatform.LEVER },
+  { name: "NoBroker", identifier: "nobroker", platform: AtsPlatform.GREENHOUSE },
+  { name: "DealShare", identifier: "dealshare", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== INDIAN SAAS & B2B (High Hiring Volume) ==========
+  { name: "Hasura", identifier: "hasura", platform: AtsPlatform.GREENHOUSE },
+  { name: "HackerRank", identifier: "hackerrank", platform: AtsPlatform.GREENHOUSE },
+  { name: "MindTickle", identifier: "mindtickle", platform: AtsPlatform.GREENHOUSE },
+  { name: "Whatfix", identifier: "whatfix", platform: AtsPlatform.GREENHOUSE },
+  { name: "MoEngage", identifier: "moengage", platform: AtsPlatform.GREENHOUSE },
+  { name: "CleverTap", identifier: "clevertap", platform: AtsPlatform.GREENHOUSE },
+  { name: "Quizizz", identifier: "quizizz", platform: AtsPlatform.LEVER },
+  { name: "Icertis", identifier: "icertis", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== INDIAN EDTECH & GAMING ==========
+  { name: "Unacademy", identifier: "unacademy", platform: AtsPlatform.LEVER },
+  { name: "Dream11", identifier: "dreamsports", platform: AtsPlatform.GREENHOUSE },
+  { name: "MPL", identifier: "mobilepremierleague", platform: AtsPlatform.GREENHOUSE },
+  { name: "Games24x7", identifier: "games24x7", platform: AtsPlatform.GREENHOUSE },
+  { name: "Teachmint", identifier: "teachmint", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== INDIAN HEALTH & LIFESTYLE ==========
+  { name: "Cure.fit", identifier: "curefit", platform: AtsPlatform.GREENHOUSE },
+  { name: "Practo", identifier: "practo", platform: AtsPlatform.GREENHOUSE },
+  { name: "Headspace", identifier: "headspace", platform: AtsPlatform.GREENHOUSE },
+
+  // ========== INDIAN MEDIA & SOCIAL ==========
+  { name: "ShareChat", identifier: "sharechat", platform: AtsPlatform.LEVER },
+  { name: "Glance", identifier: "glance", platform: AtsPlatform.GREENHOUSE },
+
   // ========== SALES & MARKETING FOCUSED ==========
   { name: "HubSpot", identifier: "hubspot", platform: AtsPlatform.GREENHOUSE },
   { name: "Monday.com", identifier: "monday", platform: AtsPlatform.GREENHOUSE },
@@ -116,7 +163,6 @@ export const INITIAL_COMPANIES = [
   { name: "Docusign", identifier: "docusign", platform: AtsPlatform.LEVER },
   { name: "Evernote", identifier: "evernote", platform: AtsPlatform.LEVER },
   { name: "Yelp", identifier: "yelp", platform: AtsPlatform.LEVER },
-  { name: "Zepto", identifier: "zepto", platform: AtsPlatform.LEVER },
 
   // ========== MARKETING & MEDIA COMPANIES ==========
   { name: "BuzzFeed", identifier: "buzzfeed", platform: AtsPlatform.GREENHOUSE },
