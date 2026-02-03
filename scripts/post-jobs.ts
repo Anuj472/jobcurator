@@ -5,20 +5,14 @@ import { Job } from '../types';
 // Environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
-const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID!;
-const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET!;
-const LINKEDIN_AUTHOR_URN = process.env.LINKEDIN_AUTHOR_URN!; // Your LinkedIn URN
+const LINKEDIN_ACCESS_TOKEN = process.env.LINKEDIN_ACCESS_TOKEN!;
+const LINKEDIN_AUTHOR_URN = process.env.LINKEDIN_AUTHOR_URN!;
 
 // Initialize Supabase
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Initialize LinkedIn Service
-const linkedinService = new LinkedInService(LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET);
-
-interface CountryJobCount {
-  country: string;
-  count: number;
-}
+let linkedinService: LinkedInService;
 
 /**
  * Get all unique countries from the database
@@ -105,7 +99,7 @@ async function postJobsWithDelay() {
 
   for (let i = 0; i < countries.length; i++) {
     const country = countries[i];
-    console.log(`\n[${ i + 1}/${countries.length}] Processing ${country}...`);
+    console.log(`\n[${i + 1}/${countries.length}] Processing ${country}...`);
 
     // Get random job for this country
     const job = await getRandomJobByCountry(country);
@@ -132,12 +126,6 @@ async function postJobsWithDelay() {
 
     if (posted) {
       successCount++;
-      
-      // Mark job as posted (optional - you can add a 'posted_to_linkedin' column)
-      // await supabase
-      //   .from('jobs')
-      //   .update({ posted_to_linkedin: true, posted_at: new Date().toISOString() })
-      //   .eq('id', job.id);
     } else {
       failCount++;
     }
@@ -165,16 +153,28 @@ async function main() {
       throw new Error('Missing Supabase credentials');
     }
 
-    if (!LINKEDIN_CLIENT_ID || !LINKEDIN_CLIENT_SECRET) {
-      throw new Error('Missing LinkedIn credentials');
+    if (!LINKEDIN_ACCESS_TOKEN) {
+      throw new Error('Missing LINKEDIN_ACCESS_TOKEN. Get it using tools/get-linkedin-urn.html');
     }
 
     if (!LINKEDIN_AUTHOR_URN) {
       console.log('⚠️ LINKEDIN_AUTHOR_URN not set. Attempting to fetch...');
+      linkedinService = new LinkedInService(LINKEDIN_ACCESS_TOKEN);
       const urn = await linkedinService.getUserUrn();
       console.log(`ℹ️ Set this as your LINKEDIN_AUTHOR_URN secret: ${urn}`);
       return;
     }
+
+    // Initialize service
+    linkedinService = new LinkedInService(LINKEDIN_ACCESS_TOKEN);
+
+    // Validate token
+    const isValid = await linkedinService.validateToken();
+    if (!isValid) {
+      throw new Error('LinkedIn access token is invalid or expired');
+    }
+
+    console.log('✅ LinkedIn access token validated');
 
     await postJobsWithDelay();
   } catch (error) {
