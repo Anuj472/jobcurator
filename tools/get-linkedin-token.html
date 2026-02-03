@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get LinkedIn Access Token</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #0077b5;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 10px;
+            border-left: 5px solid #0077b5;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #0077b5;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            font-size: 14px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #0077b5;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #0077b5;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #006399;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,119,181,0.3);
+        }
+        .btn-secondary {
+            background: #28a745;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #218838;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #f5c6cb;
+        }
+        .code-block {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+            word-break: break-all;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        ol {
+            line-height: 1.8;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 LinkedIn Access Token Generator</h1>
+        <p class="subtitle">Get your LinkedIn access token in 3 simple steps</p>
+
+        <div class="step">
+            <h3>📋 Step 1: Setup LinkedIn App</h3>
+            <ol>
+                <li>Go to <a href="https://www.linkedin.com/developers/apps" target="_blank">LinkedIn Developers</a></li>
+                <li>Open your app → Click <strong>"Auth"</strong> tab</li>
+                <li>Under <strong>"Redirect URLs"</strong>, add this URL:</li>
+            </ol>
+            <div class="code-block">https://www.google.com</div>
+            <p><small>⚠️ Yes, use Google.com as redirect (this is a simple trick!)</small></p>
+            <ol start="4">
+                <li>Under <strong>"OAuth 2.0 scopes"</strong>, make sure you have:
+                    <ul>
+                        <li>✅ r_liteprofile</li>
+                        <li>✅ r_emailaddress</li>
+                        <li>✅ w_member_social</li>
+                    </ul>
+                </li>
+                <li>Click <strong>"Update"</strong></li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>🔑 Step 2: Get Authorization Code</h3>
+            <input type="text" id="clientId" placeholder="Paste your LinkedIn Client ID here" />
+            <button class="btn-primary" onclick="getAuthCode()">🚀 Generate Authorization URL</button>
+            
+            <div id="authUrlSection" class="hidden" style="margin-top: 20px;">
+                <p><strong>Copy this URL and open it in a new tab:</strong></p>
+                <textarea id="authUrl" rows="4" readonly onclick="this.select()"></textarea>
+                <button class="btn-secondary" onclick="copyAuthUrl()">📋 Copy URL</button>
+                
+                <div class="warning">
+                    <strong>⚠️ After you authorize:</strong>
+                    <ol>
+                        <li>LinkedIn will redirect you to Google.com</li>
+                        <li>Look at the URL bar - it will have <span class="highlight">code=</span> parameter</li>
+                        <li>Copy the entire code (everything after <code>code=</code> and before <code>&</code>)</li>
+                        <li>Paste it below in Step 3</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>✨ Step 3: Generate Access Token</h3>
+            <input type="text" id="clientSecret" placeholder="Paste your LinkedIn Client Secret" />
+            <textarea id="authCode" rows="3" placeholder="Paste the authorization code from URL (the part after code=)"></textarea>
+            <button class="btn-primary" onclick="getAccessToken()">🎯 Get Access Token & URN</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const REDIRECT_URI = 'https://www.google.com';
+        
+        function getAuthCode() {
+            const clientId = document.getElementById('clientId').value.trim();
+            if (!clientId) {
+                alert('❌ Please enter your Client ID first!');
+                return;
+            }
+            
+            localStorage.setItem('linkedin_client_id', clientId);
+            
+            const scope = 'r_liteprofile r_emailaddress w_member_social';
+            const state = Math.random().toString(36).substring(7);
+            localStorage.setItem('linkedin_state', state);
+            
+            const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                `response_type=code&` +
+                `client_id=${encodeURIComponent(clientId)}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `state=${state}&` +
+                `scope=${encodeURIComponent(scope)}`;
+            
+            document.getElementById('authUrl').value = authUrl;
+            document.getElementById('authUrlSection').classList.remove('hidden');
+        }
+        
+        function copyAuthUrl() {
+            const textarea = document.getElementById('authUrl');
+            textarea.select();
+            document.execCommand('copy');
+            alert('✅ URL copied! Open it in a new tab to authorize.');
+        }
+        
+        async function getAccessToken() {
+            const authCode = document.getElementById('authCode').value.trim();
+            const clientSecret = document.getElementById('clientSecret').value.trim();
+            const clientId = localStorage.getItem('linkedin_client_id');
+            
+            if (!authCode || !clientSecret || !clientId) {
+                alert('❌ Please fill in all fields!');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="step"><p>⏳ Getting your access token and URN...</p></div>';
+            
+            try {
+                // Exchange code for access token
+                const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code: authCode,
+                        redirect_uri: REDIRECT_URI,
+                        client_id: clientId,
+                        client_secret: clientSecret,
+                    }),
+                });
+                
+                const tokenData = await tokenResponse.json();
+                
+                if (!tokenData.access_token) {
+                    throw new Error(tokenData.error_description || 'Failed to get access token');
+                }
+                
+                // Get user profile
+                const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
+                    headers: {
+                        'Authorization': `Bearer ${tokenData.access_token}`,
+                    },
+                });
+                
+                const profileData = await profileResponse.json();
+                
+                if (!profileData.id) {
+                    throw new Error('Failed to get user profile');
+                }
+                
+                const urn = `urn:li:person:${profileData.id}`;
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h2>🎉 Success!</h2>
+                        
+                        <h3>1️⃣ Your LinkedIn URN:</h3>
+                        <div class="code-block">${urn}</div>
+                        
+                        <h3>2️⃣ Your Access Token:</h3>
+                        <div class="code-block" style="font-size: 11px;">${tokenData.access_token}</div>
+                        
+                        <div class="warning">
+                            <strong>⚠️ Token expires in 60 days!</strong><br>
+                            Set a reminder to refresh your token in ~55 days.
+                        </div>
+                        
+                        <h3>📝 Next Steps:</h3>
+                        <ol>
+                            <li>Go to: <a href="https://github.com/Anuj472/jobcurator/settings/secrets/actions" target="_blank">GitHub Secrets</a></li>
+                            <li>Click <strong>"New repository secret"</strong></li>
+                            <li>Add secret #1:
+                                <ul>
+                                    <li>Name: <code>LINKEDIN_ACCESS_TOKEN</code></li>
+                                    <li>Value: <em>[Copy the access token above]</em></li>
+                                </ul>
+                            </li>
+                            <li>Click <strong>"New repository secret"</strong> again</li>
+                            <li>Add secret #2:
+                                <ul>
+                                    <li>Name: <code>LINKEDIN_AUTHOR_URN</code></li>
+                                    <li>Value: <code>${urn}</code></li>
+                                </ul>
+                            </li>
+                            <li>Test the workflow: <a href="https://github.com/Anuj472/jobcurator/actions" target="_blank">GitHub Actions</a></li>
+                        </ol>
+                        
+                        <p style="margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 8px;">
+                            <strong>💡 Pro Tip:</strong> Save these values somewhere safe (like a password manager) so you can refresh them easily in 60 days!
+                        </p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Error</h3>
+                        <p><strong>Message:</strong> ${error.message}</p>
+                        <h4>Common Issues:</h4>
+                        <ul>
+                            <li>Make sure you added <code>https://www.google.com</code> as redirect URI in LinkedIn app</li>
+                            <li>Authorization code expires in 30 seconds - get a new one</li>
+                            <li>Check that Client Secret is correct (no extra spaces)</li>
+                            <li>Make sure you copied the entire code from the URL</li>
+                            <li>Code should NOT include <code>&state=</code> or anything after it</li>
+                        </ul>
+                        <p><strong>💡 Try again:</strong> Click the "Generate Authorization URL" button in Step 2 to get a fresh code.</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
