@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get LinkedIn URN</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0077b5;
+            margin-bottom: 10px;
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #0077b5;
+        }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+        button {
+            background: #0077b5;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #006399;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+        .code-block {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Get Your LinkedIn URN</h1>
+        <p>Follow these steps to get your LinkedIn Author URN for posting jobs.</p>
+
+        <div class="step">
+            <h3>Step 1: Configure LinkedIn App</h3>
+            <p>Go to your LinkedIn app settings and add this redirect URL:</p>
+            <div class="code-block">http://localhost:8080/callback</div>
+            <p><small>Auth tab → Redirect URLs → Add redirect URL</small></p>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Enter Your Client ID</h3>
+            <input type="text" id="clientId" placeholder="Enter your LinkedIn Client ID" />
+            <p><small>Find this in your LinkedIn app's Auth tab</small></p>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Authorize with LinkedIn</h3>
+            <button onclick="authorizeLinkedIn()">🚀 Connect to LinkedIn</button>
+            <p><small>You'll be redirected to LinkedIn to authorize</small></p>
+        </div>
+
+        <div id="callbackStep" class="step" style="display:none;">
+            <h3>Step 4: Paste Authorization Code</h3>
+            <p>After authorizing, LinkedIn will redirect you back. Copy the <span class="highlight">code</span> parameter from the URL and paste it here:</p>
+            <input type="text" id="authCode" placeholder="Paste authorization code here" />
+            <input type="text" id="clientSecret" placeholder="Enter your LinkedIn Client Secret" />
+            <button onclick="getAccessToken()">📝 Get My URN</button>
+        </div>
+
+        <div id="result"></div>
+
+        <div class="step">
+            <h3>📚 Alternative: Manual Method</h3>
+            <p>If the above doesn't work, you can get your URN manually:</p>
+            <ol>
+                <li>Go to your LinkedIn profile</li>
+                <li>Right-click → Inspect → Network tab</li>
+                <li>Refresh the page</li>
+                <li>Look for requests to <code>voyager/api</code></li>
+                <li>Find your member ID in the response</li>
+                <li>Your URN is: <code>urn:li:person:YOUR_MEMBER_ID</code></li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const REDIRECT_URI = 'http://localhost:8080/callback';
+        
+        function authorizeLinkedIn() {
+            const clientId = document.getElementById('clientId').value;
+            if (!clientId) {
+                alert('Please enter your Client ID first!');
+                return;
+            }
+            
+            localStorage.setItem('linkedin_client_id', clientId);
+            document.getElementById('callbackStep').style.display = 'block';
+            
+            const scope = 'r_liteprofile r_emailaddress w_member_social';
+            const state = Math.random().toString(36).substring(7);
+            localStorage.setItem('linkedin_state', state);
+            
+            const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                `response_type=code&` +
+                `client_id=${clientId}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `state=${state}&` +
+                `scope=${encodeURIComponent(scope)}`;
+            
+            window.open(authUrl, '_blank');
+        }
+        
+        async function getAccessToken() {
+            const authCode = document.getElementById('authCode').value;
+            const clientSecret = document.getElementById('clientSecret').value;
+            const clientId = localStorage.getItem('linkedin_client_id');
+            
+            if (!authCode || !clientSecret || !clientId) {
+                alert('Please fill in all fields!');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>⏳ Fetching your URN...</p>';
+            
+            try {
+                // Exchange code for access token
+                const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code: authCode,
+                        redirect_uri: REDIRECT_URI,
+                        client_id: clientId,
+                        client_secret: clientSecret,
+                    }),
+                });
+                
+                const tokenData = await tokenResponse.json();
+                
+                if (!tokenData.access_token) {
+                    throw new Error(tokenData.error_description || 'Failed to get access token');
+                }
+                
+                // Get user profile
+                const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
+                    headers: {
+                        'Authorization': `Bearer ${tokenData.access_token}`,
+                    },
+                });
+                
+                const profileData = await profileResponse.json();
+                
+                if (!profileData.id) {
+                    throw new Error('Failed to get user profile');
+                }
+                
+                const urn = `urn:li:person:${profileData.id}`;
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Success! Your LinkedIn URN:</h3>
+                        <div class="code-block">${urn}</div>
+                        <p><strong>Next step:</strong> Add this as <code>LINKEDIN_AUTHOR_URN</code> secret in GitHub:</p>
+                        <ol>
+                            <li>Go to: https://github.com/Anuj472/jobcurator/settings/secrets/actions</li>
+                            <li>Click "New repository secret"</li>
+                            <li>Name: <code>LINKEDIN_AUTHOR_URN</code></li>
+                            <li>Value: <code>${urn}</code></li>
+                            <li>Click "Add secret"</li>
+                        </ol>
+                        <p><strong>Also save your access token (valid for 60 days):</strong></p>
+                        <div class="code-block" style="font-size: 10px; word-break: break-all;">${tokenData.access_token}</div>
+                        <p><small>You can use this token for API testing</small></p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Error</h3>
+                        <p>${error.message}</p>
+                        <p><strong>Common issues:</strong></p>
+                        <ul>
+                            <li>Make sure redirect URI is added to your LinkedIn app</li>
+                            <li>Check that Client Secret is correct</li>
+                            <li>Authorization code expires quickly - get a new one</li>
+                            <li>Make sure you copied the entire code from the URL</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+        
+        // Check if we're on callback URL
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (code) {
+                document.getElementById('authCode').value = code;
+                document.getElementById('callbackStep').style.display = 'block';
+                const clientId = localStorage.getItem('linkedin_client_id');
+                if (clientId) {
+                    document.getElementById('clientId').value = clientId;
+                }
+            }
+        };
+    </script>
+</body>
+</html>
