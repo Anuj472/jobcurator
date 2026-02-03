@@ -1,11 +1,5 @@
 import axios from 'axios';
 
-interface LinkedInTokenResponse {
-  access_token: string;
-  expires_in: number;
-  refresh_token?: string;
-}
-
 interface JobPost {
   title: string;
   company: string;
@@ -17,49 +11,10 @@ interface JobPost {
 }
 
 export class LinkedInService {
-  private clientId: string;
-  private clientSecret: string;
-  private accessToken: string | null = null;
-  private tokenExpiry: number = 0;
+  private accessToken: string;
 
-  constructor(clientId: string, clientSecret: string) {
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
-  }
-
-  /**
-   * Get OAuth access token using client credentials flow
-   */
-  private async getAccessToken(): Promise<string> {
-    // Check if we have a valid token
-    if (this.accessToken && Date.now() < this.tokenExpiry) {
-      return this.accessToken;
-    }
-
-    try {
-      const response = await axios.post<LinkedInTokenResponse>(
-        'https://www.linkedin.com/oauth/v2/accessToken',
-        new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
-
-      this.accessToken = response.data.access_token;
-      this.tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000; // Refresh 1 min before expiry
-
-      console.log('✅ LinkedIn access token obtained');
-      return this.accessToken;
-    } catch (error: any) {
-      console.error('❌ Failed to get LinkedIn access token:', error.response?.data || error.message);
-      throw new Error('LinkedIn authentication failed');
-    }
+  constructor(accessToken: string) {
+    this.accessToken = accessToken;
   }
 
   /**
@@ -99,7 +54,6 @@ export class LinkedInService {
    */
   async postJob(job: JobPost, authorUrn: string): Promise<boolean> {
     try {
-      const accessToken = await this.getAccessToken();
       const postContent = this.formatJobPost(job);
 
       // Create UGC post (LinkedIn Share API)
@@ -122,7 +76,7 @@ export class LinkedInService {
         },
         {
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
             'X-Restli-Protocol-Version': '2.0.0',
           },
@@ -142,11 +96,9 @@ export class LinkedInService {
    */
   async getUserUrn(): Promise<string> {
     try {
-      const accessToken = await this.getAccessToken();
-      
       const response = await axios.get('https://api.linkedin.com/v2/me', {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${this.accessToken}`,
         },
       });
 
@@ -156,6 +108,22 @@ export class LinkedInService {
     } catch (error: any) {
       console.error('❌ Failed to get user URN:', error.response?.data || error.message);
       throw new Error('Failed to get LinkedIn user profile');
+    }
+  }
+
+  /**
+   * Validate access token
+   */
+  async validateToken(): Promise<boolean> {
+    try {
+      await axios.get('https://api.linkedin.com/v2/me', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+        },
+      });
+      return true;
+    } catch (error) {
+      return false;
     }
   }
 }
