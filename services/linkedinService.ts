@@ -33,7 +33,7 @@ export class LinkedInService {
     ];
 
     jobs.forEach((job, index) => {
-      parts.push(`━━━━━━━━━━━━━━━━━━━━`);
+      parts.push(`════════════════════`);
       parts.push(``);
       parts.push(`${index + 1}️⃣ ${job.title}`);
       parts.push(`🏢 ${job.company}`);
@@ -59,7 +59,7 @@ export class LinkedInService {
       parts.push(``);
     });
 
-    parts.push(`━━━━━━━━━━━━━━━━━━━━`);
+    parts.push(`════════════════════`);
     parts.push(``);
     parts.push(`💡 More opportunities at acrossjob.com`);
     parts.push(``);
@@ -79,6 +79,8 @@ export class LinkedInService {
       if (postContent.length > 3000) {
         console.log(`⚠️ Post too long (${postContent.length} chars), truncating...`);
       }
+
+      console.log(`📤 Posting to LinkedIn with author URN: ${authorUrn}`);
 
       // Create UGC post (LinkedIn Share API)
       const response = await axios.post(
@@ -110,7 +112,11 @@ export class LinkedInService {
       console.log(`✅ Successfully posted batch of ${jobs.length} jobs to LinkedIn`);
       return true;
     } catch (error: any) {
-      console.error(`❌ Failed to post jobs to LinkedIn:`, error.response?.data || error.message);
+      console.error(`❌ Failed to post jobs to LinkedIn:`);
+      console.error(`Status: ${error.response?.status}`);
+      console.error(`Status Text: ${error.response?.statusText}`);
+      console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
+      console.error(`Message: ${error.message}`);
       return false;
     }
   }
@@ -120,6 +126,7 @@ export class LinkedInService {
    */
   async getUserUrn(): Promise<string> {
     try {
+      console.log(`🔍 Fetching user profile from LinkedIn...`);
       const response = await axios.get('https://api.linkedin.com/v2/me', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
@@ -130,7 +137,11 @@ export class LinkedInService {
       console.log(`✅ User URN obtained: ${urn}`);
       return urn;
     } catch (error: any) {
-      console.error('❌ Failed to get user URN:', error.response?.data || error.message);
+      console.error('❌ Failed to get user URN:');
+      console.error(`Status: ${error.response?.status}`);
+      console.error(`Status Text: ${error.response?.statusText}`);
+      console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
+      console.error(`Message: ${error.message}`);
       throw new Error('Failed to get LinkedIn user profile');
     }
   }
@@ -140,13 +151,32 @@ export class LinkedInService {
    */
   async validateToken(): Promise<boolean> {
     try {
-      await axios.get('https://api.linkedin.com/v2/me', {
+      console.log(`🔍 Calling LinkedIn API to validate token...`);
+      console.log(`Token length: ${this.accessToken.length}`);
+      console.log(`Token starts with: ${this.accessToken.substring(0, 10)}...`);
+      
+      const response = await axios.get('https://api.linkedin.com/v2/me', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
         },
       });
+      
+      console.log(`✅ Token validation successful`);
+      console.log(`User ID: ${response.data.id}`);
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Token validation failed:');
+      console.error(`Status: ${error.response?.status}`);
+      console.error(`Status Text: ${error.response?.statusText}`);
+      console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
+      console.error(`Message: ${error.message}`);
+      
+      if (error.response?.status === 401) {
+        console.error('🚨 Unauthorized - Token is invalid or expired');
+      } else if (error.response?.status === 403) {
+        console.error('🚨 Forbidden - Token lacks required permissions');
+      }
+      
       return false;
     }
   }
