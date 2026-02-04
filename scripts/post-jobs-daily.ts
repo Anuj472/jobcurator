@@ -166,16 +166,12 @@ async function main() {
       throw new Error('Missing LINKEDIN_AUTHOR_URN');
     }
 
+    console.log(`✅ Using provided LinkedIn Author URN: ${LINKEDIN_AUTHOR_URN}`);
+    console.log(`📝 Token length: ${LINKEDIN_ACCESS_TOKEN.length} characters`);
+    console.log(`⚠️ Skipping token validation (only posting permission needed)\n`);
+
     // Initialize LinkedIn service
     linkedinService = new LinkedInService(LINKEDIN_ACCESS_TOKEN);
-
-    // Validate token
-    console.log('🔐 Validating LinkedIn access token...');
-    const isValid = await linkedinService.validateToken();
-    if (!isValid) {
-      throw new Error('LinkedIn access token is invalid or expired');
-    }
-    console.log('✅ Token validated\n');
 
     let successCount = 0;
     let failCount = 0;
@@ -205,6 +201,11 @@ async function main() {
     console.log(`❌ Failed posts: ${failCount}`);
     console.log(`📊 Total jobs posted: ${successCount * JOBS_PER_POST}`);
     console.log(`${'='.repeat(50)}\n`);
+
+    if (failCount > 0) {
+      console.log(`⚠️ Some posts failed. Check the logs above for details.`);
+      process.exit(1);
+    }
 
   } catch (error) {
     console.error('\n❌ Fatal error:', error);
