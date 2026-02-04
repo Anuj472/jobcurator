@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { LinkedInService } from '../services/linkedinService';
-import { Job } from '../types';
 
 // Environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -20,20 +19,43 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Initialize LinkedIn Service
 let linkedinService: LinkedInService;
 
+interface JobWithCompany {
+  id: string;
+  title: string;
+  description: string;
+  location_city: string;
+  location_country: string;
+  job_type: string;
+  salary_range?: string;
+  companies: {
+    name: string;
+  };
+}
+
 /**
  * Get jobs that haven't been posted to LinkedIn in the last 30 days
  */
-async function getUnpostedJobs(limit: number): Promise<Job[]> {
+async function getUnpostedJobs(limit: number): Promise<JobWithCompany[]> {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - NO_REPEAT_DAYS);
 
-    // Query for jobs that either:
-    // 1. Have never been posted (linkedin_posted_at is null)
-    // 2. Were posted more than 30 days ago
+    // Query for active jobs with company names
     const { data, error } = await supabase
       .from('jobs')
-      .select('*')
+      .select(`
+        id,
+        title,
+        description,
+        location_city,
+        location_country,
+        job_type,
+        salary_range,
+        companies!inner (
+          name
+        )
+      `)
+      .eq('is_active', true)
       .or(`linkedin_posted_at.is.null,linkedin_posted_at.lt.${thirtyDaysAgo.toISOString()}`)
       .order('created_at', { ascending: false })
       .limit(limit * 2); // Get more than needed for randomization
@@ -53,7 +75,7 @@ async function getUnpostedJobs(limit: number): Promise<Job[]> {
     const selected = shuffled.slice(0, limit);
 
     console.log(`✅ Found ${data.length} unposted jobs, selected ${selected.length}`);
-    return selected as Job[];
+    return selected as JobWithCompany[];
   } catch (error) {
     console.error('❌ Error in getUnpostedJobs:', error);
     return [];
@@ -83,14 +105,20 @@ async function markJobsAsPosted(jobIds: string[]): Promise<void> {
 /**
  * Format job data for LinkedIn posting
  */
-function formatJobForPost(job: Job) {
+function formatJobForPost(job: JobWithCompany) {
   // Create apply URL on acrossjob.com
   const applyUrl = `https://acrossjob.com/jobs/${job.id}`;
   
+  // Get company name from joined data
+  const companyName = job.companies?.name || 'Company';
+  
+  // Format location
+  const location = `${job.location_city || ''}${job.location_city && job.location_country ? ', ' : ''}${job.location_country || ''}`.trim() || 'Remote';
+  
   return {
     title: job.title,
-    company: job.company,
-    location: `${job.city || ''}${job.city && job.country ? ', ' : ''}${job.country || ''}`.trim() || 'Remote',
+    company: companyName,
+    location: location,
     description: job.description || 'Click the link to view full job description.',
     url: applyUrl,
     salary: job.salary_range || undefined,
@@ -151,7 +179,8 @@ async function main() {
     console.log(`  - Jobs per post: ${JOBS_PER_POST}`);
     console.log(`  - Total jobs: ${POSTS_PER_RUN * JOBS_PER_POST}`);
     console.log(`  - Delay between posts: ${DELAY_BETWEEN_POSTS_MINUTES} minutes`);
-    console.log(`  - No-repeat period: ${NO_REPEAT_DAYS} days\n`);
+    console.log(`  - No-repeat period: ${NO_REPEAT_DAYS} days`);
+    console.log(`  - Apply links: https://acrossjob.com/jobs/{job_id}\n`);
 
     // Validate environment variables
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
