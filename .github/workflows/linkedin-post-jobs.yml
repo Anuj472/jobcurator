@@ -1,19 +1,16 @@
 name: Post Jobs to LinkedIn
 
-# Trigger after daily harvest completes
+# Run twice daily: 9 AM and 6 PM IST (3:30 AM and 12:30 PM UTC)
 on:
-  workflow_run:
-    workflows: ["Daily Job Harvest"]
-    types:
-      - completed
+  schedule:
+    - cron: '30 3 * * *'   # 9:00 AM IST
+    - cron: '30 12 * * *'  # 6:00 PM IST
   # Manual trigger for testing
   workflow_dispatch:
 
 jobs:
   post-linkedin-jobs:
     runs-on: ubuntu-latest
-    # Only run if the previous workflow succeeded
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     steps:
       - name: 📥 Checkout repository
@@ -37,18 +34,25 @@ jobs:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
         run: |
-          echo "🚀 Starting LinkedIn job posting..."
-          tsx scripts/post-jobs.ts
+          echo "🚀 Starting daily LinkedIn job posting..."
+          echo "Time: $(date)"
+          tsx scripts/post-jobs-daily.ts
           echo "✅ Job posting completed!"
 
       - name: 📊 Generate posting summary
         if: always()
         run: |
-          echo "### LinkedIn Job Posting Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### LinkedIn Daily Job Posting Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Workflow**: Post Jobs to LinkedIn" >> $GITHUB_STEP_SUMMARY
-          echo "- **Triggered by**: Daily Job Harvest completion" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow**: Post Jobs to LinkedIn (2x Daily)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Schedule**: 9 AM & 6 PM IST" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Time**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Posts per run: 2" >> $GITHUB_STEP_SUMMARY
+          echo "- Jobs per post: 5" >> $GITHUB_STEP_SUMMARY
+          echo "- Total jobs posted: 10" >> $GITHUB_STEP_SUMMARY
+          echo "- Delay between posts: 20 minutes" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📌 Check the logs above for detailed posting information" >> $GITHUB_STEP_SUMMARY
