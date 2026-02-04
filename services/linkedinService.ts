@@ -10,6 +10,10 @@ interface JobPost {
   type?: string;
 }
 
+interface BatchJobPost {
+  jobs: JobPost[];
+}
+
 export class LinkedInService {
   private accessToken: string;
 
@@ -18,54 +22,74 @@ export class LinkedInService {
   }
 
   /**
-   * Format job post content for LinkedIn
+   * Format multiple jobs into a single LinkedIn post
    */
-  private formatJobPost(job: JobPost): string {
+  private formatBatchJobPost(jobs: JobPost[]): string {
     const parts = [
-      `🚀 New Job Opportunity: ${job.title}`,
+      `🚀 NEW JOB OPPORTUNITIES 🚀`,
       '',
-      `🏢 Company: ${job.company}`,
-      `📍 Location: ${job.location}`,
+      `We've got ${jobs.length} exciting opportunities for you today! 👇`,
+      '',
     ];
 
-    if (job.type) {
-      parts.push(`💼 Type: ${job.type}`);
-    }
+    jobs.forEach((job, index) => {
+      parts.push(`━━━━━━━━━━━━━━━━━━━━`);
+      parts.push(``);
+      parts.push(`${index + 1}️⃣ ${job.title}`);
+      parts.push(`🏢 ${job.company}`);
+      parts.push(`📍 ${job.location}`);
+      
+      if (job.type) {
+        parts.push(`💼 ${job.type}`);
+      }
+      
+      if (job.salary) {
+        parts.push(`💰 ${job.salary}`);
+      }
+      
+      // Add description (limit to 200 chars per job)
+      if (job.description) {
+        const shortDesc = job.description.substring(0, 200).trim();
+        parts.push(``);
+        parts.push(`📋 ${shortDesc}${job.description.length > 200 ? '...' : ''}`);
+      }
+      
+      parts.push(``);
+      parts.push(`🔗 Apply: ${job.url}`);
+      parts.push(``);
+    });
 
-    if (job.salary) {
-      parts.push(`💰 Salary: ${job.salary}`);
-    }
-
-    parts.push(
-      '',
-      '📋 Description:',
-      job.description.substring(0, 500) + (job.description.length > 500 ? '...' : ''),
-      '',
-      `🔗 Apply Now: ${job.url}`,
-      '',
-      '#JobAlert #Hiring #JobOpportunity #AcrossJob'
-    );
+    parts.push(`━━━━━━━━━━━━━━━━━━━━`);
+    parts.push(``);
+    parts.push(`💡 More opportunities at acrossjob.com`);
+    parts.push(``);
+    parts.push(`#JobAlert #Hiring #JobOpportunities #Jobs #Career #AcrossJob`);
 
     return parts.join('\n');
   }
 
   /**
-   * Post a job to LinkedIn using UGC Posts API
+   * Post multiple jobs in a single LinkedIn post
    */
-  async postJob(job: JobPost, authorUrn: string): Promise<boolean> {
+  async postBatchJobs(jobs: JobPost[], authorUrn: string): Promise<boolean> {
     try {
-      const postContent = this.formatJobPost(job);
+      const postContent = this.formatBatchJobPost(jobs);
+
+      // Check if content is too long (LinkedIn limit is 3000 chars)
+      if (postContent.length > 3000) {
+        console.log(`⚠️ Post too long (${postContent.length} chars), truncating...`);
+      }
 
       // Create UGC post (LinkedIn Share API)
       const response = await axios.post(
         'https://api.linkedin.com/v2/ugcPosts',
         {
-          author: authorUrn, // Format: "urn:li:person:{personId}" or "urn:li:organization:{organizationId}"
+          author: authorUrn,
           lifecycleState: 'PUBLISHED',
           specificContent: {
             'com.linkedin.ugc.ShareContent': {
               shareCommentary: {
-                text: postContent,
+                text: postContent.substring(0, 3000), // Ensure within limit
               },
               shareMediaCategory: 'NONE',
             },
@@ -83,16 +107,16 @@ export class LinkedInService {
         }
       );
 
-      console.log(`✅ Successfully posted job: ${job.title} - ${job.location}`);
+      console.log(`✅ Successfully posted batch of ${jobs.length} jobs to LinkedIn`);
       return true;
     } catch (error: any) {
-      console.error(`❌ Failed to post job to LinkedIn:`, error.response?.data || error.message);
+      console.error(`❌ Failed to post jobs to LinkedIn:`, error.response?.data || error.message);
       return false;
     }
   }
 
   /**
-   * Get user profile URN (needed for posting)
+   * Get user profile URN
    */
   async getUserUrn(): Promise<string> {
     try {
