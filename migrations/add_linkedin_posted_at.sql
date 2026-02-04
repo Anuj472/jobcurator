@@ -10,10 +10,5 @@ ADD COLUMN IF NOT EXISTS linkedin_posted_at TIMESTAMP WITH TIME ZONE;
 CREATE INDEX IF NOT EXISTS idx_jobs_linkedin_posted_at 
 ON jobs(linkedin_posted_at);
 
--- Create a composite index for the common query pattern
-CREATE INDEX IF NOT EXISTS idx_jobs_status_linkedin_posted 
-ON jobs(status, linkedin_posted_at) 
-WHERE status = 'active';
-
 -- Add a comment to the column
 COMMENT ON COLUMN jobs.linkedin_posted_at IS 'Timestamp of when this job was last posted to LinkedIn';
