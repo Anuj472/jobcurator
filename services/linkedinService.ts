@@ -47,11 +47,11 @@ export class LinkedInService {
         parts.push(`💰 ${job.salary}`);
       }
       
-      // Add description (limit to 200 chars per job)
+      // Add description (limit to 150 chars per job for better fit)
       if (job.description) {
-        const shortDesc = job.description.substring(0, 200).trim();
+        const shortDesc = job.description.substring(0, 150).trim();
         parts.push(``);
-        parts.push(`📋 ${shortDesc}${job.description.length > 200 ? '...' : ''}`);
+        parts.push(`📋 ${shortDesc}${job.description.length > 150 ? '...' : ''}`);
       }
       
       parts.push(``);
@@ -69,7 +69,8 @@ export class LinkedInService {
   }
 
   /**
-   * Post multiple jobs in a single LinkedIn post using REST API
+   * Post multiple jobs in a single LinkedIn post using v2 UGC API
+   * This API doesn't require LinkedIn-Version header
    */
   async postBatchJobs(jobs: JobPost[], authorUrn: string): Promise<boolean> {
     try {
@@ -82,30 +83,32 @@ export class LinkedInService {
 
       console.log(`📤 Posting to LinkedIn with author: ${authorUrn}`);
       console.log(`📝 Post length: ${postContent.length} characters`);
+      console.log(`📦 Using v2 UGC API (no version header required)`);
 
-      // Use the new REST API (LinkedIn API v2.1)
-      // Reference: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/share-on-linkedin
+      // Use v2 UGC API which is more stable and doesn't require version headers
       const response = await axios.post(
-        'https://api.linkedin.com/rest/posts',
+        'https://api.linkedin.com/v2/ugcPosts',
         {
           author: authorUrn,
-          commentary: postContent.substring(0, 3000),
-          visibility: 'PUBLIC',
-          distribution: {
-            feedDistribution: 'MAIN_FEED',
-            targetEntities: [],
-            thirdPartyDistributionChannels: []
-          },
           lifecycleState: 'PUBLISHED',
-          isReshareDisabledByAuthor: false
+          specificContent: {
+            'com.linkedin.ugc.ShareContent': {
+              shareCommentary: {
+                text: postContent.substring(0, 3000)
+              },
+              shareMediaCategory: 'NONE'
+            }
+          },
+          visibility: {
+            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'
+          }
         },
         {
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
-            'X-Restli-Protocol-Version': '2.0.0',
-            'LinkedIn-Version': '202402'
-          },
+            'X-Restli-Protocol-Version': '2.0.0'
+          }
         }
       );
 
@@ -126,15 +129,13 @@ export class LinkedInService {
       if (error.response?.status === 401) {
         console.error('🚨 Unauthorized - Token may be expired or invalid');
       } else if (error.response?.status === 403) {
-        console.error('🚨 Forbidden - Check if:');
-        console.error('   1. You have w_member_social permission');
-        console.error('   2. You are admin of the organization (for org posts)');
-        console.error('   3. URN format is correct');
+        console.error('🚨 Forbidden - Possible causes:');
+        console.error('   1. Token needs w_member_social permission');
+        console.error('   2. For organization posts: must be admin AND use org URN');
+        console.error('   3. URN format: urn:li:organization:ID or urn:li:person:ID');
+        console.error(`   4. Current URN: ${authorUrn}`);
       } else if (error.response?.status === 422) {
         console.error('🚨 Validation error - Check post content and URN format');
-      } else if (error.response?.status === 426) {
-        console.error('🚨 Upgrade Required - Try different API version');
-        console.error('   Current version: 202402');
       }
       
       return false;
