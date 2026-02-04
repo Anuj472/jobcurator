@@ -103,7 +103,8 @@ export class LinkedInService {
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
-            'X-Restli-Protocol-Version': '2.0.0'
+            'X-Restli-Protocol-Version': '2.0.0',
+            'LinkedIn-Version': '202308'
           },
         }
       );
