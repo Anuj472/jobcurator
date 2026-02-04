@@ -104,7 +104,7 @@ export class LinkedInService {
             'Authorization': `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
             'X-Restli-Protocol-Version': '2.0.0',
-            'LinkedIn-Version': '202308'
+            'LinkedIn-Version': '202402'
           },
         }
       );
@@ -119,7 +119,6 @@ export class LinkedInService {
       console.error(`❌ Failed to post jobs to LinkedIn:`);
       console.error(`Status: ${error.response?.status}`);
       console.error(`Status Text: ${error.response?.statusText}`);
-      console.error(`Headers:`, error.response?.headers);
       console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
       console.error(`Message: ${error.message}`);
       
@@ -134,7 +133,8 @@ export class LinkedInService {
       } else if (error.response?.status === 422) {
         console.error('🚨 Validation error - Check post content and URN format');
       } else if (error.response?.status === 426) {
-        console.error('🚨 Upgrade Required - API version issue');
+        console.error('🚨 Upgrade Required - Try different API version');
+        console.error('   Current version: 202402');
       }
       
       return false;
