@@ -69,7 +69,7 @@ export class LinkedInService {
   }
 
   /**
-   * Post multiple jobs in a single LinkedIn post
+   * Post multiple jobs in a single LinkedIn post using REST API
    */
   async postBatchJobs(jobs: JobPost[], authorUrn: string): Promise<boolean> {
     try {
@@ -80,43 +80,58 @@ export class LinkedInService {
         console.log(`⚠️ Post too long (${postContent.length} chars), truncating...`);
       }
 
-      console.log(`📤 Posting to LinkedIn with author URN: ${authorUrn}`);
+      console.log(`📤 Posting to LinkedIn with author: ${authorUrn}`);
+      console.log(`📝 Post length: ${postContent.length} characters`);
 
-      // Create UGC post (LinkedIn Share API)
+      // Use the new REST API (LinkedIn API v2.1)
+      // Reference: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/share-on-linkedin
       const response = await axios.post(
-        'https://api.linkedin.com/v2/ugcPosts',
+        'https://api.linkedin.com/rest/posts',
         {
           author: authorUrn,
+          commentary: postContent.substring(0, 3000),
+          visibility: 'PUBLIC',
+          distribution: {
+            feedDistribution: 'MAIN_FEED',
+            targetEntities: [],
+            thirdPartyDistributionChannels: []
+          },
           lifecycleState: 'PUBLISHED',
-          specificContent: {
-            'com.linkedin.ugc.ShareContent': {
-              shareCommentary: {
-                text: postContent.substring(0, 3000), // Ensure within limit
-              },
-              shareMediaCategory: 'NONE',
-            },
-          },
-          visibility: {
-            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
-          },
+          isReshareDisabledByAuthor: false
         },
         {
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
             'X-Restli-Protocol-Version': '2.0.0',
+            'LinkedIn-Version': '202401'
           },
         }
       );
 
       console.log(`✅ Successfully posted batch of ${jobs.length} jobs to LinkedIn`);
+      console.log(`📊 Response status: ${response.status}`);
       return true;
     } catch (error: any) {
       console.error(`❌ Failed to post jobs to LinkedIn:`);
       console.error(`Status: ${error.response?.status}`);
       console.error(`Status Text: ${error.response?.statusText}`);
+      console.error(`Headers:`, error.response?.headers);
       console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
       console.error(`Message: ${error.message}`);
+      
+      // Additional debugging info
+      if (error.response?.status === 401) {
+        console.error('🚨 Unauthorized - Token may be expired or invalid');
+      } else if (error.response?.status === 403) {
+        console.error('🚨 Forbidden - Check if:');
+        console.error('   1. You have w_member_social permission');
+        console.error('   2. You are admin of the organization (for org posts)');
+        console.error('   3. URN format is correct');
+      } else if (error.response?.status === 422) {
+        console.error('🚨 Validation error - Check post content and URN format');
+      }
+      
       return false;
     }
   }
