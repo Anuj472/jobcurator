@@ -28,13 +28,12 @@ async function getUnpostedJobs(limit: number): Promise<Job[]> {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - NO_REPEAT_DAYS);
 
-    // Query for active jobs that either:
+    // Query for jobs that either:
     // 1. Have never been posted (linkedin_posted_at is null)
     // 2. Were posted more than 30 days ago
     const { data, error } = await supabase
       .from('jobs')
       .select('*')
-      .eq('status', 'active')
       .or(`linkedin_posted_at.is.null,linkedin_posted_at.lt.${thirtyDaysAgo.toISOString()}`)
       .order('created_at', { ascending: false })
       .limit(limit * 2); // Get more than needed for randomization
