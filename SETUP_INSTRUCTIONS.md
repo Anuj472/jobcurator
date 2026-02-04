@@ -15,13 +15,9 @@
 ALTER TABLE jobs
 ADD COLUMN IF NOT EXISTS linkedin_posted_at TIMESTAMP WITH TIME ZONE;
 
--- Create indexes for performance
+-- Create index for performance
 CREATE INDEX IF NOT EXISTS idx_jobs_linkedin_posted_at 
 ON jobs(linkedin_posted_at);
-
-CREATE INDEX IF NOT EXISTS idx_jobs_status_linkedin_posted 
-ON jobs(status, linkedin_posted_at) 
-WHERE status = 'active';
 ```
 
 6. Click **"Run"** (bottom right)
@@ -95,7 +91,9 @@ We've got 5 exciting opportunities for you today! 👇
 
 ━━━━━━━━━━━━━━━━━━━━
 
-[4 more jobs...]
+2️⃣ Product Manager
+🏢 Microsoft
+...
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -157,7 +155,7 @@ We've got 5 exciting opportunities for you today! 👇
 **Check**:
 - Token is valid
 - URN is correct
-- Database has active jobs
+- Database has jobs
 - Check logs for details
 
 ## 📚 Documentation
