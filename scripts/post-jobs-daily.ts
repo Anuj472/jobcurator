@@ -106,8 +106,8 @@ async function markJobsAsPosted(jobIds: string[]): Promise<void> {
  * Format job data for LinkedIn posting
  */
 function formatJobForPost(job: JobWithCompany) {
-  // Create apply URL on acrossjob.com
-  const applyUrl = `https://acrossjob.com/jobs/${job.id}`;
+  // FIXED: Use /job/{id} instead of /jobs/{id} to match frontend routing
+  const applyUrl = `https://acrossjob.com/job/${job.id}`;
   
   // Get company name from joined data
   const companyName = job.companies?.name || 'Company';
@@ -180,7 +180,7 @@ async function main() {
     console.log(`  - Total jobs: ${POSTS_PER_RUN * JOBS_PER_POST}`);
     console.log(`  - Delay between posts: ${DELAY_BETWEEN_POSTS_MINUTES} minutes`);
     console.log(`  - No-repeat period: ${NO_REPEAT_DAYS} days`);
-    console.log(`  - Apply links: https://acrossjob.com/jobs/{job_id}\n`);
+    console.log(`  - Apply links: https://acrossjob.com/job/{job_id}\n`);
 
     // Validate environment variables
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
