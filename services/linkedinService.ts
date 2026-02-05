@@ -22,6 +22,24 @@ export class LinkedInService {
   }
 
   /**
+   * Strip HTML tags from text
+   */
+  private stripHtml(html: string): string {
+    // Remove HTML tags
+    let text = html.replace(/<[^>]*>/g, '');
+    // Decode common HTML entities
+    text = text.replace(/&nbsp;/g, ' ');
+    text = text.replace(/&amp;/g, '&');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&#39;/g, "'");
+    // Remove extra whitespace
+    text = text.replace(/\s+/g, ' ').trim();
+    return text;
+  }
+
+  /**
    * Format multiple jobs into a single LinkedIn post
    */
   private formatBatchJobPost(jobs: JobPost[]): string {
@@ -47,11 +65,12 @@ export class LinkedInService {
         parts.push(`💰 ${job.salary}`);
       }
       
-      // Add description (limit to 150 chars per job for better fit)
+      // Add description (strip HTML and limit to 150 chars per job for better fit)
       if (job.description) {
-        const shortDesc = job.description.substring(0, 150).trim();
+        const cleanDesc = this.stripHtml(job.description);
+        const shortDesc = cleanDesc.substring(0, 150).trim();
         parts.push(``);
-        parts.push(`📋 ${shortDesc}${job.description.length > 150 ? '...' : ''}`);
+        parts.push(`📋 ${shortDesc}${cleanDesc.length > 150 ? '...' : ''}`);
       }
       
       parts.push(``);
