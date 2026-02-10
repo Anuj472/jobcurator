@@ -1,10 +1,10 @@
 name: Post Jobs to LinkedIn
 
-# Run twice daily: 9 AM and 6 PM IST (3:30 AM and 12:30 PM UTC)
+# Run daily at 10:30 PM IST (5:00 PM UTC)
+# IST = UTC + 5:30, so 10:30 PM IST = 5:00 PM UTC = 17:00 UTC
 on:
   schedule:
-    - cron: '30 3 * * *'   # 9:00 AM IST
-    - cron: '30 12 * * *'  # 6:00 PM IST
+    - cron: '0 17 * * *'   # 10:30 PM IST daily
   # Manual trigger for testing
   workflow_dispatch:
 
@@ -44,8 +44,8 @@ jobs:
         run: |
           echo "### LinkedIn Daily Job Posting Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Workflow**: Post Jobs to LinkedIn (2x Daily)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Schedule**: 9 AM & 6 PM IST" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow**: Post Jobs to LinkedIn (Daily)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Schedule**: 10:30 PM IST (Daily)" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
