@@ -10,38 +10,116 @@ interface JobPost {
   type?: string;
 }
 
-interface BatchJobPost {
-  jobs: JobPost[];
-}
-
 export class LinkedInService {
   private accessToken: string;
+  private refreshToken: string | null;
+  private clientId: string | null;
+  private clientSecret: string | null;
 
-  constructor(accessToken: string) {
+  constructor(
+    accessToken: string,
+    refreshToken?: string,
+    clientId?: string,
+    clientSecret?: string
+  ) {
     this.accessToken = accessToken;
+    this.refreshToken = refreshToken || null;
+    this.clientId = clientId || null;
+    this.clientSecret = clientSecret || null;
+  }
+
+  // ─── Token Management ────────────────────────────────────────────────────
+
+  /**
+   * Try to refresh the access token using the refresh token.
+   * LinkedIn refresh tokens are valid for 365 days.
+   * Returns the new access token string or null on failure.
+   */
+  async refreshAccessToken(): Promise<string | null> {
+    if (!this.refreshToken || !this.clientId || !this.clientSecret) {
+      console.warn('⚠️  Cannot refresh token: missing LINKEDIN_REFRESH_TOKEN, LINKEDIN_CLIENT_ID, or LINKEDIN_CLIENT_SECRET');
+      return null;
+    }
+
+    try {
+      console.log('🔄 Refreshing LinkedIn access token...');
+      const params = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: this.refreshToken,
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+      });
+
+      const response = await axios.post(
+        'https://www.linkedin.com/oauth/v2/accessToken',
+        params.toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+
+      const newToken: string = response.data.access_token;
+      const expiresIn: number = response.data.expires_in ?? 5183944;
+      const newRefresh: string | undefined = response.data.refresh_token;
+
+      this.accessToken = newToken;
+      if (newRefresh) this.refreshToken = newRefresh;
+
+      const expiryDate = new Date(Date.now() + expiresIn * 1000).toISOString();
+      console.log(`✅ Token refreshed successfully! New token expires: ${expiryDate}`);
+      console.log('⚠️  ACTION REQUIRED: Update LINKEDIN_ACCESS_TOKEN secret in GitHub with the new token below:');
+      console.log(`🔑 NEW_ACCESS_TOKEN=${newToken}`);
+      if (newRefresh) {
+        console.log(`🔑 NEW_REFRESH_TOKEN=${newRefresh}`);
+      }
+
+      return newToken;
+    } catch (error: any) {
+      console.error('❌ Token refresh failed:');
+      console.error(`Status: ${error.response?.status}`);
+      console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
+      return null;
+    }
   }
 
   /**
-   * Strip HTML tags from text
+   * Checks if the current token is valid. If it returns 401, tries to refresh.
+   * Returns true if we have a working token, false otherwise.
    */
+  async ensureValidToken(): Promise<boolean> {
+    try {
+      await axios.get('https://api.linkedin.com/v2/me', {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      });
+      console.log('✅ Access token is valid.');
+      return true;
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        console.warn('⚠️  Access token expired (401). Attempting refresh...');
+        const newToken = await this.refreshAccessToken();
+        if (newToken) return true;
+        console.error('❌ Could not refresh token. Please manually update LINKEDIN_ACCESS_TOKEN secret.');
+        return false;
+      }
+      // Non-401 error — network issue etc. Proceed and let the post fail naturally.
+      console.warn(`⚠️  Token check returned ${error.response?.status}. Proceeding anyway.`);
+      return true;
+    }
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
   private stripHtml(html: string): string {
-    // Remove HTML tags
-    let text = html.replace(/<[^>]*>/g, '');
-    // Decode common HTML entities
-    text = text.replace(/&nbsp;/g, ' ');
-    text = text.replace(/&amp;/g, '&');
-    text = text.replace(/&lt;/g, '<');
-    text = text.replace(/&gt;/g, '>');
-    text = text.replace(/&quot;/g, '"');
-    text = text.replace(/&#39;/g, "'");
-    // Remove extra whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-    return text;
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
-  /**
-   * Format multiple jobs into a single LinkedIn post
-   */
   private formatBatchJobPost(jobs: JobPost[]): string {
     const parts = [
       `🚀 NEW JOB OPPORTUNITIES 🚀`,
@@ -56,23 +134,14 @@ export class LinkedInService {
       parts.push(`${index + 1}️⃣ ${job.title}`);
       parts.push(`🏢 ${job.company}`);
       parts.push(`📍 ${job.location}`);
-      
-      if (job.type) {
-        parts.push(`💼 ${job.type}`);
-      }
-      
-      if (job.salary) {
-        parts.push(`💰 ${job.salary}`);
-      }
-      
-      // Add description (strip HTML and limit to 150 chars per job for better fit)
+      if (job.type) parts.push(`💼 ${job.type}`);
+      if (job.salary) parts.push(`💰 ${job.salary}`);
       if (job.description) {
         const cleanDesc = this.stripHtml(job.description);
         const shortDesc = cleanDesc.substring(0, 150).trim();
         parts.push(``);
         parts.push(`📋 ${shortDesc}${cleanDesc.length > 150 ? '...' : ''}`);
       }
-      
       parts.push(``);
       parts.push(`🔗 Apply: ${job.url}`);
       parts.push(``);
@@ -87,24 +156,27 @@ export class LinkedInService {
     return parts.join('\n');
   }
 
-  /**
-   * Post multiple jobs in a single LinkedIn post using v2 UGC API
-   * This API doesn't require LinkedIn-Version header
-   */
+  // ─── Posting ─────────────────────────────────────────────────────────────
+
   async postBatchJobs(jobs: JobPost[], authorUrn: string): Promise<boolean> {
+    // Always check / refresh token before posting
+    const tokenOk = await this.ensureValidToken();
+    if (!tokenOk) {
+      console.error('❌ Aborting post — no valid LinkedIn access token.');
+      return false;
+    }
+
     try {
       const postContent = this.formatBatchJobPost(jobs);
 
-      // Check if content is too long (LinkedIn limit is 3000 chars)
       if (postContent.length > 3000) {
         console.log(`⚠️ Post too long (${postContent.length} chars), truncating...`);
       }
 
       console.log(`📤 Posting to LinkedIn with author: ${authorUrn}`);
       console.log(`📝 Post length: ${postContent.length} characters`);
-      console.log(`📦 Using v2 UGC API (no version header required)`);
+      console.log(`📦 Using v2 UGC API`);
 
-      // Use v2 UGC API which is more stable and doesn't require version headers
       const response = await axios.post(
         'https://api.linkedin.com/v2/ugcPosts',
         {
@@ -112,28 +184,26 @@ export class LinkedInService {
           lifecycleState: 'PUBLISHED',
           specificContent: {
             'com.linkedin.ugc.ShareContent': {
-              shareCommentary: {
-                text: postContent.substring(0, 3000)
-              },
-              shareMediaCategory: 'NONE'
-            }
+              shareCommentary: { text: postContent.substring(0, 3000) },
+              shareMediaCategory: 'NONE',
+            },
           },
           visibility: {
-            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'
-          }
+            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+          },
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
-            'X-Restli-Protocol-Version': '2.0.0'
-          }
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
         }
       );
 
       console.log(`✅ Successfully posted batch of ${jobs.length} jobs to LinkedIn`);
       console.log(`📊 Response status: ${response.status}`);
-      if (response.headers && response.headers['x-restli-id']) {
+      if (response.headers?.['x-restli-id']) {
         console.log(`🆔 Post ID: ${response.headers['x-restli-id']}`);
       }
       return true;
@@ -143,82 +213,32 @@ export class LinkedInService {
       console.error(`Status Text: ${error.response?.statusText}`);
       console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
       console.error(`Message: ${error.message}`);
-      
-      // Additional debugging info
+
       if (error.response?.status === 401) {
-        console.error('🚨 Unauthorized - Token may be expired or invalid');
+        console.error('🚨 Unauthorized — token refresh was attempted but post still failed.');
+        console.error('   Please regenerate your token at https://www.linkedin.com/developers/apps');
       } else if (error.response?.status === 403) {
-        console.error('🚨 Forbidden - Possible causes:');
-        console.error('   1. Token needs w_member_social permission');
-        console.error('   2. For organization posts: must be admin AND use org URN');
-        console.error('   3. URN format: urn:li:organization:ID or urn:li:person:ID');
-        console.error(`   4. Current URN: ${authorUrn}`);
+        console.error('🚨 Forbidden — token lacks w_member_social or w_organization_social scope');
+        console.error(`   Current author URN: ${authorUrn}`);
       } else if (error.response?.status === 422) {
-        console.error('🚨 Validation error - Check post content and URN format');
+        console.error('🚨 Validation error — check URN format and post content');
       }
-      
+
       return false;
     }
   }
 
-  /**
-   * Get user profile URN
-   */
+  // ─── Utilities ───────────────────────────────────────────────────────────
+
   async getUserUrn(): Promise<string> {
-    try {
-      console.log(`🔍 Fetching user profile from LinkedIn...`);
-      const response = await axios.get('https://api.linkedin.com/v2/me', {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-        },
-      });
-
-      const urn = `urn:li:person:${response.data.id}`;
-      console.log(`✅ User URN obtained: ${urn}`);
-      return urn;
-    } catch (error: any) {
-      console.error('❌ Failed to get user URN:');
-      console.error(`Status: ${error.response?.status}`);
-      console.error(`Status Text: ${error.response?.statusText}`);
-      console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
-      console.error(`Message: ${error.message}`);
-      throw new Error('Failed to get LinkedIn user profile');
-    }
+    const response = await axios.get('https://api.linkedin.com/v2/me', {
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    return `urn:li:person:${response.data.id}`;
   }
 
-  /**
-   * Validate access token
-   */
   async validateToken(): Promise<boolean> {
-    try {
-      console.log(`🔍 Calling LinkedIn API to validate token...`);
-      console.log(`Token length: ${this.accessToken.length}`);
-      console.log(`Token starts with: ${this.accessToken.substring(0, 10)}...`);
-      
-      const response = await axios.get('https://api.linkedin.com/v2/me', {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-        },
-      });
-      
-      console.log(`✅ Token validation successful`);
-      console.log(`User ID: ${response.data.id}`);
-      return true;
-    } catch (error: any) {
-      console.error('❌ Token validation failed:');
-      console.error(`Status: ${error.response?.status}`);
-      console.error(`Status Text: ${error.response?.statusText}`);
-      console.error(`Data:`, JSON.stringify(error.response?.data, null, 2));
-      console.error(`Message: ${error.message}`);
-      
-      if (error.response?.status === 401) {
-        console.error('🚨 Unauthorized - Token is invalid or expired');
-      } else if (error.response?.status === 403) {
-        console.error('🚨 Forbidden - Token lacks required permissions');
-      }
-      
-      return false;
-    }
+    return this.ensureValidToken();
   }
 }
 

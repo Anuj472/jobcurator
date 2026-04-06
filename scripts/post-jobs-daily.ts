@@ -6,6 +6,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
 const LINKEDIN_ACCESS_TOKEN = process.env.LINKEDIN_ACCESS_TOKEN!;
 const LINKEDIN_AUTHOR_URN = process.env.LINKEDIN_AUTHOR_URN!;
+const LINKEDIN_REFRESH_TOKEN = process.env.LINKEDIN_REFRESH_TOKEN;
+const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
+const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
 
 // Configuration
 const JOBS_PER_POST = 5;
@@ -16,7 +19,6 @@ const NO_REPEAT_DAYS = 30;
 // Initialize Supabase
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Initialize LinkedIn Service
 let linkedinService: LinkedInService;
 
 interface JobWithCompany {
@@ -32,15 +34,11 @@ interface JobWithCompany {
   };
 }
 
-/**
- * Get jobs that haven't been posted to LinkedIn in the last 30 days
- */
 async function getUnpostedJobs(limit: number): Promise<JobWithCompany[]> {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - NO_REPEAT_DAYS);
 
-    // Query for active jobs with company names
     const { data, error } = await supabase
       .from('jobs')
       .select(`
@@ -58,7 +56,7 @@ async function getUnpostedJobs(limit: number): Promise<JobWithCompany[]> {
       .eq('is_active', true)
       .or(`linkedin_posted_at.is.null,linkedin_posted_at.lt.${thirtyDaysAgo.toISOString()}`)
       .order('created_at', { ascending: false })
-      .limit(limit * 2); // Get more than needed for randomization
+      .limit(limit * 2);
 
     if (error) {
       console.error('❌ Error fetching jobs:', error);
@@ -70,10 +68,8 @@ async function getUnpostedJobs(limit: number): Promise<JobWithCompany[]> {
       return [];
     }
 
-    // Shuffle and take only the needed amount
     const shuffled = data.sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, limit);
-
     console.log(`✅ Found ${data.length} unposted jobs, selected ${selected.length}`);
     return selected as JobWithCompany[];
   } catch (error) {
@@ -82,9 +78,6 @@ async function getUnpostedJobs(limit: number): Promise<JobWithCompany[]> {
   }
 }
 
-/**
- * Mark jobs as posted to LinkedIn
- */
 async function markJobsAsPosted(jobIds: string[]): Promise<void> {
   try {
     const { error } = await supabase
@@ -102,23 +95,17 @@ async function markJobsAsPosted(jobIds: string[]): Promise<void> {
   }
 }
 
-/**
- * Format job data for LinkedIn posting
- */
 function formatJobForPost(job: JobWithCompany) {
-  // FIXED: Use /job/{id} instead of /jobs/{id} to match frontend routing
   const applyUrl = `https://acrossjob.com/job/${job.id}`;
-  
-  // Get company name from joined data
   const companyName = job.companies?.name || 'Company';
-  
-  // Format location
-  const location = `${job.location_city || ''}${job.location_city && job.location_country ? ', ' : ''}${job.location_country || ''}`.trim() || 'Remote';
-  
+  const location = `${job.location_city || ''}${
+    job.location_city && job.location_country ? ', ' : ''
+  }${job.location_country || ''}`.trim() || 'Remote';
+
   return {
     title: job.title,
     company: companyName,
-    location: location,
+    location,
     description: job.description || 'Click the link to view full job description.',
     url: applyUrl,
     salary: job.salary_range || undefined,
@@ -126,13 +113,9 @@ function formatJobForPost(job: JobWithCompany) {
   };
 }
 
-/**
- * Post a batch of jobs to LinkedIn
- */
 async function postJobBatch(batchNumber: number): Promise<boolean> {
   console.log(`\n📦 Preparing batch ${batchNumber}...`);
 
-  // Get unposted jobs
   const jobs = await getUnpostedJobs(JOBS_PER_POST);
 
   if (jobs.length === 0) {
@@ -144,20 +127,16 @@ async function postJobBatch(batchNumber: number): Promise<boolean> {
     console.log(`⚠️ Only ${jobs.length} jobs available (wanted ${JOBS_PER_POST})`);
   }
 
-  // Format jobs for posting
   const formattedJobs = jobs.map(formatJobForPost);
 
-  // Log jobs being posted
   console.log(`\n📝 Batch ${batchNumber} contains:`);
   formattedJobs.forEach((job, index) => {
     console.log(`  ${index + 1}. ${job.title} at ${job.company} (${job.location})`);
   });
 
-  // Post to LinkedIn
   const posted = await linkedinService.postBatchJobs(formattedJobs, LINKEDIN_AUTHOR_URN);
 
   if (posted) {
-    // Mark these jobs as posted
     const jobIds = jobs.map(job => job.id);
     await markJobsAsPosted(jobIds);
     console.log(`✅ Batch ${batchNumber} posted successfully!`);
@@ -168,9 +147,6 @@ async function postJobBatch(batchNumber: number): Promise<boolean> {
   }
 }
 
-/**
- * Main execution - Post 2 batches with delay
- */
 async function main() {
   try {
     console.log('🚀 Starting daily LinkedIn job posting...\n');
@@ -182,47 +158,44 @@ async function main() {
     console.log(`  - No-repeat period: ${NO_REPEAT_DAYS} days`);
     console.log(`  - Apply links: https://acrossjob.com/job/{job_id}\n`);
 
-    // Validate environment variables
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      throw new Error('Missing Supabase credentials');
-    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Missing Supabase credentials');
+    if (!LINKEDIN_ACCESS_TOKEN) throw new Error('Missing LINKEDIN_ACCESS_TOKEN');
+    if (!LINKEDIN_AUTHOR_URN) throw new Error('Missing LINKEDIN_AUTHOR_URN');
 
-    if (!LINKEDIN_ACCESS_TOKEN) {
-      throw new Error('Missing LINKEDIN_ACCESS_TOKEN');
-    }
-
-    if (!LINKEDIN_AUTHOR_URN) {
-      throw new Error('Missing LINKEDIN_AUTHOR_URN');
+    // Log token refresh capability
+    if (LINKEDIN_REFRESH_TOKEN && LINKEDIN_CLIENT_ID && LINKEDIN_CLIENT_SECRET) {
+      console.log('🔄 Token auto-refresh: ENABLED (refresh token + credentials found)');
+    } else {
+      console.log('⚠️  Token auto-refresh: DISABLED (add LINKEDIN_REFRESH_TOKEN, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET to enable)');
     }
 
     console.log(`✅ Using provided LinkedIn Author URN: ${LINKEDIN_AUTHOR_URN}`);
-    console.log(`📝 Token length: ${LINKEDIN_ACCESS_TOKEN.length} characters`);
-    console.log(`⚠️ Skipping token validation (only posting permission needed)\n`);
+    console.log(`📝 Token length: ${LINKEDIN_ACCESS_TOKEN.length} characters\n`);
 
-    // Initialize LinkedIn service
-    linkedinService = new LinkedInService(LINKEDIN_ACCESS_TOKEN);
+    // Initialize LinkedIn service with refresh support
+    linkedinService = new LinkedInService(
+      LINKEDIN_ACCESS_TOKEN,
+      LINKEDIN_REFRESH_TOKEN,
+      LINKEDIN_CLIENT_ID,
+      LINKEDIN_CLIENT_SECRET
+    );
 
     let successCount = 0;
     let failCount = 0;
 
-    // Post batches
     for (let i = 1; i <= POSTS_PER_RUN; i++) {
       const success = await postJobBatch(i);
-      
-      if (success) {
-        successCount++;
-      } else {
-        failCount++;
-      }
+      if (success) successCount++;
+      else failCount++;
 
-      // Wait between posts (except after the last one)
       if (i < POSTS_PER_RUN) {
         console.log(`\n⏳ Waiting ${DELAY_BETWEEN_POSTS_MINUTES} minutes before next post...`);
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_POSTS_MINUTES * 60 * 1000));
+        await new Promise(resolve =>
+          setTimeout(resolve, DELAY_BETWEEN_POSTS_MINUTES * 60 * 1000)
+        );
       }
     }
 
-    // Summary
     console.log(`\n${'='.repeat(50)}`);
     console.log(`🎯 DAILY POSTING COMPLETE`);
     console.log(`${'='.repeat(50)}`);
@@ -235,12 +208,10 @@ async function main() {
       console.log(`⚠️ Some posts failed. Check the logs above for details.`);
       process.exit(1);
     }
-
   } catch (error) {
     console.error('\n❌ Fatal error:', error);
     process.exit(1);
   }
 }
 
-// Run the script
 main();

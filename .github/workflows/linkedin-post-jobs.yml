@@ -1,17 +1,15 @@
 name: Post Jobs to LinkedIn
 
 # Run daily at 10:30 PM IST (5:00 PM UTC)
-# IST = UTC + 5:30, so 10:30 PM IST = 5:00 PM UTC = 17:00 UTC
 on:
   schedule:
-    - cron: '0 16 * * *'   # 10:30 PM IST daily
-  # Manual trigger for testing
+    - cron: '0 16 * * *'   # 9:30 PM IST daily
   workflow_dispatch:
 
 jobs:
   post-linkedin-jobs:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
@@ -33,6 +31,9 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
         run: |
           echo "🚀 Starting daily LinkedIn job posting..."
           echo "Time: $(date)"
@@ -45,7 +46,7 @@ jobs:
           echo "### LinkedIn Daily Job Posting Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Workflow**: Post Jobs to LinkedIn (Daily)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Schedule**: 10:30 PM IST (Daily)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Schedule**: 9:30 PM IST (Daily)" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -53,6 +54,5 @@ jobs:
           echo "- Posts per run: 2" >> $GITHUB_STEP_SUMMARY
           echo "- Jobs per post: 5" >> $GITHUB_STEP_SUMMARY
           echo "- Total jobs posted: 10" >> $GITHUB_STEP_SUMMARY
-          echo "- Delay between posts: 20 minutes" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📌 Check the logs above for detailed posting information" >> $GITHUB_STEP_SUMMARY
