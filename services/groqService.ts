@@ -50,31 +50,52 @@ export class GroqService {
       })
       .join('\n\n');
 
-    const prompt = `You are a professional LinkedIn content writer for a job board called AcrossJob (acrossjob.com).
+    const systemPrompt = `You are an expert LinkedIn content writer for AcrossJob (acrossjob.com), a job discovery platform.
+Your posts consistently get high engagement because they feel authentic, energetic, and human — not like a bot.
 
-Generate an engaging, professional LinkedIn post featuring the following ${jobs.length} job opportunities. The post should:
-- Start with an attention-grabbing hook (use relevant emojis)
-- Present each job clearly with its key details (title, company, location, type, salary if available)
-- Include the apply URL for each job
-- End with a call-to-action mentioning acrossjob.com
-- Include relevant hashtags at the bottom: #JobAlert #Hiring #JobOpportunities #Jobs #Career #AcrossJob
-- Be formatted for LinkedIn (use line breaks, emojis for visual appeal)
-- Stay under 2800 characters total
-- Sound human and encouraging, not robotic
+CRITICAL FORMATTING RULES (LinkedIn does NOT render Markdown):
+- NEVER use ** for bold. LinkedIn ignores it and the asterisks appear as raw characters.
+- NEVER use ## headers, __, or any Markdown syntax.
+- Use ONLY plain text, emojis, line breaks, and Unicode separators for structure.
+- Each job block must be separated by a blank line.
+- The apply URL must appear on its own line with a 🔗 emoji prefix.
+- Hashtags go on the very last line, space-separated.
+- Total post must be under 2800 characters.`;
 
-Jobs to feature:
+    const userPrompt = `Write an engaging LinkedIn post featuring these ${jobs.length} job opportunities.
+
+Post structure to follow EXACTLY:
+1. Opening hook (1-2 lines, punchy, with emojis — no generic phrases like "Take your career to the next level")
+2. One short motivating sentence about the variety/quality of these roles
+3. For EACH job, a block like this (plain text only, NO asterisks or markdown):
+
+────────────────────
+[number]️⃣ [Job Title] — [emoji that matches the role]
+🏢 [Company] · 📍 [Location]
+[if job type]: 💼 [Type]
+[if salary]: 💰 [Salary]
+[One compelling sentence about what makes this role exciting — based on the description]
+🔗 [Apply URL]
+
+4. Closing line encouraging people to visit acrossjob.com for more
+5. Final line: hashtags only — #JobAlert #Hiring #JobOpportunities #Jobs #Career #AcrossJob
+
+Jobs:
 ${jobList}
 
-Generate ONLY the LinkedIn post text. No extra commentary or explanation.`;
+Return ONLY the post text. No preamble, no explanation, no markdown.`;
 
     try {
       console.log(`🤖 Generating LinkedIn post with Groq (${this.model})...`);
 
       const completion = await this.client.chat.completions.create({
         model: this.model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
         max_tokens: 1024,
-        temperature: 0.75,
+        temperature: 0.8,
       });
 
       const content = completion.choices[0]?.message?.content?.trim();
@@ -83,8 +104,11 @@ Generate ONLY the LinkedIn post text. No extra commentary or explanation.`;
         throw new Error('Groq returned empty content');
       }
 
-      console.log(`✅ Groq generated post (${content.length} characters)`);
-      return content;
+      // Safety net: strip any ** that slipped through
+      const cleaned = content.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+
+      console.log(`✅ Groq generated post (${cleaned.length} characters)`);
+      return cleaned;
     } catch (error: any) {
       console.error('❌ Groq generation failed:', error.message);
       console.warn('⚠️  Falling back to template-based post generation');
@@ -101,27 +125,24 @@ Generate ONLY the LinkedIn post text. No extra commentary or explanation.`;
     ];
 
     jobs.forEach((job, index) => {
-      parts.push(`════════════════════`);
+      parts.push(`────────────────────`);
       parts.push(``);
       parts.push(`${index + 1}️⃣ ${job.title}`);
-      parts.push(`🏢 ${job.company}`);
-      parts.push(`📍 ${job.location}`);
+      parts.push(`🏢 ${job.company} · 📍 ${job.location}`);
       if (job.type) parts.push(`💼 ${job.type}`);
       if (job.salary) parts.push(`💰 ${job.salary}`);
       if (job.description) {
         const cleanDesc = this.stripHtml(job.description);
         const shortDesc = cleanDesc.substring(0, 150).trim();
-        parts.push(``);
-        parts.push(`📋 ${shortDesc}${cleanDesc.length > 150 ? '...' : ''}`);
+        parts.push(`${shortDesc}${cleanDesc.length > 150 ? '...' : ''}`);
       }
-      parts.push(``);
-      parts.push(`🔗 Apply: ${job.url}`);
+      parts.push(`🔗 ${job.url}`);
       parts.push(``);
     });
 
-    parts.push(`════════════════════`);
+    parts.push(`────────────────────`);
     parts.push(``);
-    parts.push(`💡 More opportunities at acrossjob.com`);
+    parts.push(`💡 Explore more at acrossjob.com`);
     parts.push(``);
     parts.push(`#JobAlert #Hiring #JobOpportunities #Jobs #Career #AcrossJob`);
 
