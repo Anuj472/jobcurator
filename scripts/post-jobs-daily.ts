@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { LinkedInService } from '../services/linkedinService';
+import { GroqService } from '../services/groqService';
 
 // Environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -9,6 +10,7 @@ const LINKEDIN_AUTHOR_URN = process.env.LINKEDIN_AUTHOR_URN!;
 const LINKEDIN_REFRESH_TOKEN = process.env.LINKEDIN_REFRESH_TOKEN;
 const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
 const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // Configuration
 const JOBS_PER_POST = 5;
@@ -20,6 +22,7 @@ const NO_REPEAT_DAYS = 30;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let linkedinService: LinkedInService;
+let groqService: GroqService | null = null;
 
 interface JobWithCompany {
   id: string;
@@ -134,7 +137,19 @@ async function postJobBatch(batchNumber: number): Promise<boolean> {
     console.log(`  ${index + 1}. ${job.title} at ${job.company} (${job.location})`);
   });
 
-  const posted = await linkedinService.postBatchJobs(formattedJobs, LINKEDIN_AUTHOR_URN);
+  // Generate post content via Groq LLM, or fall back to template inside the service
+  let llmContent: string | undefined;
+  if (groqService) {
+    llmContent = await groqService.generateBatchJobPost(formattedJobs);
+  } else {
+    console.log('⚠️  GROQ_API_KEY not set — using template-based post generation');
+  }
+
+  const posted = await linkedinService.postBatchJobs(
+    formattedJobs,
+    LINKEDIN_AUTHOR_URN,
+    llmContent
+  );
 
   if (posted) {
     const jobIds = jobs.map(job => job.id);
@@ -162,17 +177,24 @@ async function main() {
     if (!LINKEDIN_ACCESS_TOKEN) throw new Error('Missing LINKEDIN_ACCESS_TOKEN');
     if (!LINKEDIN_AUTHOR_URN) throw new Error('Missing LINKEDIN_AUTHOR_URN');
 
-    // Log token refresh capability
+    // Groq LLM setup
+    if (GROQ_API_KEY) {
+      groqService = new GroqService(GROQ_API_KEY);
+      console.log('🤖 Post generation: GROQ LLM (llama-3.1-8b-instant) — ENABLED');
+    } else {
+      console.log('⚠️  Post generation: template fallback (add GROQ_API_KEY secret to enable LLM)');
+    }
+
+    // LinkedIn token refresh capability
     if (LINKEDIN_REFRESH_TOKEN && LINKEDIN_CLIENT_ID && LINKEDIN_CLIENT_SECRET) {
-      console.log('🔄 Token auto-refresh: ENABLED (refresh token + credentials found)');
+      console.log('🔄 Token auto-refresh: ENABLED');
     } else {
       console.log('⚠️  Token auto-refresh: DISABLED (add LINKEDIN_REFRESH_TOKEN, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET to enable)');
     }
 
-    console.log(`✅ Using provided LinkedIn Author URN: ${LINKEDIN_AUTHOR_URN}`);
+    console.log(`✅ Using LinkedIn Author URN: ${LINKEDIN_AUTHOR_URN}`);
     console.log(`📝 Token length: ${LINKEDIN_ACCESS_TOKEN.length} characters\n`);
 
-    // Initialize LinkedIn service with refresh support
     linkedinService = new LinkedInService(
       LINKEDIN_ACCESS_TOKEN,
       LINKEDIN_REFRESH_TOKEN,
