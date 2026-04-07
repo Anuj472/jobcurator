@@ -30,11 +30,6 @@ export class LinkedInService {
 
   // ─── Token Management ────────────────────────────────────────────────────
 
-  /**
-   * Try to refresh the access token using the refresh token.
-   * LinkedIn refresh tokens are valid for 365 days.
-   * Returns the new access token string or null on failure.
-   */
   async refreshAccessToken(): Promise<string | null> {
     if (!this.refreshToken || !this.clientId || !this.clientSecret) {
       console.warn('⚠️  Cannot refresh token: missing LINKEDIN_REFRESH_TOKEN, LINKEDIN_CLIENT_ID, or LINKEDIN_CLIENT_SECRET');
@@ -80,10 +75,6 @@ export class LinkedInService {
     }
   }
 
-  /**
-   * Checks if the current token is valid. If it returns 401, tries to refresh.
-   * Returns true if we have a working token, false otherwise.
-   */
   async ensureValidToken(): Promise<boolean> {
     try {
       await axios.get('https://api.linkedin.com/v2/me', {
@@ -99,7 +90,6 @@ export class LinkedInService {
         console.error('❌ Could not refresh token. Please manually update LINKEDIN_ACCESS_TOKEN secret.');
         return false;
       }
-      // Non-401 error — network issue etc. Proceed and let the post fail naturally.
       console.warn(`⚠️  Token check returned ${error.response?.status}. Proceeding anyway.`);
       return true;
     }
@@ -120,7 +110,8 @@ export class LinkedInService {
       .trim();
   }
 
-  private formatBatchJobPost(jobs: JobPost[]): string {
+  /** Fallback template-based formatter (used when no LLM content is provided) */
+  formatBatchJobPost(jobs: JobPost[]): string {
     const parts = [
       `🚀 NEW JOB OPPORTUNITIES 🚀`,
       '',
@@ -158,8 +149,18 @@ export class LinkedInService {
 
   // ─── Posting ─────────────────────────────────────────────────────────────
 
-  async postBatchJobs(jobs: JobPost[], authorUrn: string): Promise<boolean> {
-    // Always check / refresh token before posting
+  /**
+   * Post a batch of jobs to LinkedIn.
+   * @param jobs       Array of job objects
+   * @param authorUrn  LinkedIn author URN
+   * @param llmContent Optional pre-generated post text from an LLM (e.g. Groq).
+   *                   When provided, the template formatter is skipped entirely.
+   */
+  async postBatchJobs(
+    jobs: JobPost[],
+    authorUrn: string,
+    llmContent?: string
+  ): Promise<boolean> {
     const tokenOk = await this.ensureValidToken();
     if (!tokenOk) {
       console.error('❌ Aborting post — no valid LinkedIn access token.');
@@ -167,15 +168,17 @@ export class LinkedInService {
     }
 
     try {
-      const postContent = this.formatBatchJobPost(jobs);
+      // Use LLM-generated content when available, otherwise fall back to template
+      const postContent = llmContent ?? this.formatBatchJobPost(jobs);
+      const source = llmContent ? 'Groq LLM' : 'template fallback';
 
-      if (postContent.length > 3000) {
-        console.log(`⚠️ Post too long (${postContent.length} chars), truncating...`);
-      }
-
+      console.log(`📝 Post source: ${source}`);
       console.log(`📤 Posting to LinkedIn with author: ${authorUrn}`);
       console.log(`📝 Post length: ${postContent.length} characters`);
-      console.log(`📦 Using v2 UGC API`);
+
+      if (postContent.length > 3000) {
+        console.log(`⚠️ Post too long (${postContent.length} chars), truncating to 3000...`);
+      }
 
       const response = await axios.post(
         'https://api.linkedin.com/v2/ugcPosts',
@@ -201,7 +204,7 @@ export class LinkedInService {
         }
       );
 
-      console.log(`✅ Successfully posted batch of ${jobs.length} jobs to LinkedIn`);
+      console.log(`✅ Successfully posted batch of ${jobs.length} jobs to LinkedIn (via ${source})`);
       console.log(`📊 Response status: ${response.status}`);
       if (response.headers?.['x-restli-id']) {
         console.log(`🆔 Post ID: ${response.headers['x-restli-id']}`);
