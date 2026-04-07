@@ -1,9 +1,9 @@
 name: Post Jobs to LinkedIn
 
-# Run daily at 10:30 PM IST (5:00 PM UTC)
+# Run daily at 9:30 PM IST (4:00 PM UTC)
 on:
   schedule:
-    - cron: '0 16 * * *'   # 9:30 PM IST daily
+    - cron: '0 16 * * *'
   workflow_dispatch:
 
 jobs:
@@ -22,10 +22,13 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
+      - name: 📦 Ensure groq-sdk is installed
+        run: npm install groq-sdk
+
       - name: 📝 Install TypeScript tools
         run: npm install -g tsx typescript @types/node
 
-      - name: 🚀 Post jobs to LinkedIn
+      - name: 🚀 Post jobs to LinkedIn (LLM-generated via Groq)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -34,8 +37,9 @@ jobs:
           LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
           LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
           LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          echo "🚀 Starting daily LinkedIn job posting..."
+          echo "🚀 Starting daily LinkedIn job posting with Groq LLM..."
           echo "Time: $(date)"
           tsx scripts/post-jobs-daily.ts
           echo "✅ Job posting completed!"
@@ -47,6 +51,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Workflow**: Post Jobs to LinkedIn (Daily)" >> $GITHUB_STEP_SUMMARY
           echo "- **Schedule**: 9:30 PM IST (Daily)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Post generation**: Groq LLM (llama-3.1-8b-instant)" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
