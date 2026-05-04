@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { LinkedInService } from '../services/linkedinService';
 import { GroqService } from '../services/groqService';
 
@@ -18,8 +19,12 @@ const POSTS_PER_RUN = 2;
 const DELAY_BETWEEN_POSTS_MINUTES = 20;
 const NO_REPEAT_DAYS = 30;
 
-// Initialize Supabase
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Initialize Supabase — pass ws as transport for Node.js < 22
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  realtime: {
+    transport: WebSocket,
+  },
+});
 
 let linkedinService: LinkedInService;
 let groqService: GroqService | null = null;
