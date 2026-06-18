@@ -51,7 +51,7 @@ const App: React.FC = () => {
   const fetchDbJobs = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('jobs').select('*, company:companies(*)').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('jobs').select('*, company:companies(*)').eq('is_active', true).order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Error fetching DB jobs:', error);
         setStatus(`Error: ${error.message}`);

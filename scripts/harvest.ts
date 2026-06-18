@@ -192,6 +192,47 @@ const deleteExpiredJobs = async (companyId: string, activeApplyLinks: string[]):
   }
 };
 
+/**
+ * Delete all inactive jobs from the database
+ * These are jobs previously marked as is_active = false
+ */
+const deleteInactiveJobs = async (): Promise<number> => {
+  try {
+    // First count how many inactive jobs exist
+    const { count, error: countError } = await supabase
+      .from('jobs')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', false);
+
+    if (countError) {
+      console.error('   ❌ Error counting inactive jobs:', countError.message);
+      return 0;
+    }
+
+    if (!count || count === 0) {
+      console.log('   ✅ No inactive jobs to clean up');
+      return 0;
+    }
+
+    // Delete all inactive jobs
+    const { error: deleteError } = await supabase
+      .from('jobs')
+      .delete()
+      .eq('is_active', false);
+
+    if (deleteError) {
+      console.error('   ❌ Error deleting inactive jobs:', deleteError.message);
+      return 0;
+    }
+
+    console.log(`   🗑️ Deleted ${count} inactive jobs from database`);
+    return count;
+  } catch (err: any) {
+    console.error('   ❌ Exception deleting inactive jobs:', err.message);
+    return 0;
+  }
+};
+
 const harvestAndSync = async () => {
   console.log(`\n${'='.repeat(70)}`);
   console.log(`\ud83d\ude80 JOB HARVESTER WITH LIFECYCLE MANAGEMENT`);
@@ -317,6 +358,10 @@ const harvestAndSync = async () => {
     }
   }
 
+  // STEP 3: Clean up all inactive jobs from the database
+  console.log(`\n🧹 Cleaning up inactive jobs...`);
+  const inactiveDeleted = await deleteInactiveJobs();
+
 
 
   console.log(`\n${'='.repeat(70)}`);
@@ -326,6 +371,7 @@ const harvestAndSync = async () => {
   console.log(`   Jobs found on ATS: ${totalFound}`);
   console.log(`   Jobs synced/updated: ${totalSynced}`);
   console.log(`   Jobs deleted (expired): ${totalExpired}`);
+  console.log(`   Inactive jobs removed: ${inactiveDeleted}`);
   console.log(`   Jobs failed: ${totalFailed}`);
   console.log(`\n\ud83d\udcc2 Category Distribution:`);
   Object.entries(categoryStats).forEach(([cat, count]) => {
