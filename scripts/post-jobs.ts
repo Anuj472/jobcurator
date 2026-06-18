@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import { LinkedInService } from '../services/linkedinService';
 import { Job } from '../types';
 
@@ -9,7 +10,9 @@ const LINKEDIN_ACCESS_TOKEN = process.env.LINKEDIN_ACCESS_TOKEN!;
 const LINKEDIN_AUTHOR_URN = process.env.LINKEDIN_AUTHOR_URN!;
 
 // Initialize Supabase
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  realtime: { transport: ws },
+});
 
 // Initialize LinkedIn Service
 let linkedinService: LinkedInService;

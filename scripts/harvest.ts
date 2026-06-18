@@ -10,6 +10,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import { AtsService } from '../services/atsService';
 import { INITIAL_COMPANIES } from '../constants';
 import { Job, AtsPlatform, JobCategory, JobType, ExperienceLevel } from '../types';
@@ -25,7 +26,9 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: { transport: ws },
+});
 
 // Category mapping logic
 const mapToJobCategory = (rawDept: string | undefined, title: string | undefined): JobCategory => {
