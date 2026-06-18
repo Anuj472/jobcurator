@@ -213,12 +213,21 @@ const harvestAndSync = async () => {
       
       // Fetch jobs from ATS
       let rawJobs: any[] = [];
+      let fetchFailed = false;
       if (company.platform === AtsPlatform.GREENHOUSE) {
         rawJobs = await AtsService.fetchGreenhouseJobs(company.identifier);
       } else if (company.platform === AtsPlatform.LEVER) {
         rawJobs = await AtsService.fetchLeverJobs(company.identifier);
       } else if (company.platform === AtsPlatform.ASHBY) {
         rawJobs = await AtsService.fetchAshbyJobs(company.identifier);
+      }
+
+      // Detect if fetch returned nothing due to an error (safeFetch returns null → empty array)
+      // We check rawJobs length AND whether the platform was actually attempted
+      if (rawJobs.length === 0 && (company.platform === AtsPlatform.GREENHOUSE || 
+          company.platform === AtsPlatform.LEVER || company.platform === AtsPlatform.ASHBY)) {
+        // Could be a genuine 0 or a fetch failure — mark as potentially failed
+        fetchFailed = true;
       }
 
       console.log(`   Found ${rawJobs.length} active jobs on ATS`);
@@ -238,9 +247,9 @@ const harvestAndSync = async () => {
       }
 
       if (rawJobs.length === 0) {
-        // If company has zero jobs, delete all existing jobs for it
-        const expired = await deleteExpiredJobs(companyId, []);
-        totalExpired += expired;
+        if (fetchFailed) {
+          console.log(`   \u26a0\ufe0f Skipping deletion — fetch may have failed, keeping existing jobs`);
+        }
         continue;
       }
 

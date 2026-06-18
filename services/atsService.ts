@@ -2,6 +2,7 @@ import { AtsPlatform, Job } from '../types';
 import { LocationService } from './locationService';
 
 export class AtsService {
+  // CORS proxies — only used in browser environments
   private static PROXIES = [
     'https://api.allorigins.win/get?url=',
     'https://corsproxy.io/?',
@@ -9,34 +10,31 @@ export class AtsService {
     'https://thingproxy.freeboard.io/fetch/'
   ];
 
+  // Detect if running in Node.js (server-side) vs browser
+  private static isServer = typeof process !== 'undefined' && process.versions?.node;
+
   /**
-   * Enhanced fetch with real browser headers to avoid bot blocking
+   * Fetch with retry logic for server-side, or proxy fallback for browser
    */
   static async safeFetch(url: string, proxyIndex = -1): Promise<any> {
-    // Try direct fetch first with browser-like headers
+    // Server-side (Node.js / GitHub Actions): call APIs directly, no proxies needed
+    if (this.isServer) {
+      return this.serverFetch(url);
+    }
+
+    // Browser: try direct first, then fall back to CORS proxies
     if (proxyIndex === -1) {
       try {
         const res = await fetch(url, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.google.com/',
-            'Origin': 'https://www.google.com',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'cross-site'
           }
         });
         
         if (res.ok) {
           const text = await res.text();
-          // Check if response is HTML (error page) instead of JSON
           if (text.trim().startsWith('<')) {
-            console.warn(`   ⚠️ Received HTML instead of JSON from ${url}`);
             return this.safeFetch(url, 0);
           }
           return JSON.parse(text);
@@ -47,7 +45,7 @@ export class AtsService {
       return this.safeFetch(url, 0);
     }
     
-    // Try proxies
+    // Try proxies (browser only)
     if (proxyIndex >= this.PROXIES.length) {
       console.error(`   ❌ All proxies failed for ${url}`);
       return null;
@@ -67,6 +65,50 @@ export class AtsService {
     } catch (e) {
       return this.safeFetch(url, proxyIndex + 1);
     }
+  }
+
+  /**
+   * Server-side direct fetch with retries (no CORS proxies needed)
+   */
+  private static async serverFetch(url: string, retries = 3): Promise<any> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'JobCurator/2.4 (GitHub Actions; +https://acrossjob.com)',
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(30000), // 30s timeout
+        });
+
+        if (!res.ok) {
+          if (res.status === 429) {
+            // Rate limited — wait and retry
+            const waitMs = attempt * 5000;
+            console.warn(`   ⚠️ Rate limited on ${url}, waiting ${waitMs / 1000}s...`);
+            await new Promise(r => setTimeout(r, waitMs));
+            continue;
+          }
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+
+        const text = await res.text();
+        if (text.trim().startsWith('<')) {
+          throw new Error('Received HTML instead of JSON');
+        }
+        return JSON.parse(text);
+      } catch (e: any) {
+        if (attempt < retries) {
+          const waitMs = attempt * 2000;
+          console.warn(`   ⚠️ Attempt ${attempt}/${retries} failed for ${url}: ${e.message}. Retrying in ${waitMs / 1000}s...`);
+          await new Promise(r => setTimeout(r, waitMs));
+        } else {
+          console.error(`   ❌ All ${retries} attempts failed for ${url}: ${e.message}`);
+          return null;
+        }
+      }
+    }
+    return null;
   }
 
   /**
