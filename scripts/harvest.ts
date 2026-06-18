@@ -137,10 +137,10 @@ const getOrCreateCompanyId = async (
 };
 
 /**
- * Mark expired jobs as inactive
- * FIXED: Fetch and filter approach instead of complex NOT IN query
+ * Delete expired jobs from the database
+ * Jobs no longer present on the ATS are removed immediately
  */
-const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): Promise<number> => {
+const deleteExpiredJobs = async (companyId: string, activeApplyLinks: string[]): Promise<number> => {
   try {
     if (activeApplyLinks.length === 0) {
       console.log('   \u26a0\ufe0f No active jobs to compare against');
@@ -173,21 +173,21 @@ const markExpiredJobs = async (companyId: string, activeApplyLinks: string[]): P
       return 0;
     }
 
-    // Mark them as inactive
-    const { error: updateError } = await supabase
+    // Delete them from the table
+    const { error: deleteError } = await supabase
       .from('jobs')
-      .update({ is_active: false })
+      .delete()
       .in('id', expiredJobIds);
 
-    if (updateError) {
-      console.error('   \u274c Error updating expired jobs:', updateError.message);
+    if (deleteError) {
+      console.error('   \u274c Error deleting expired jobs:', deleteError.message);
       return 0;
     }
 
-    console.log(`   \ud83d\udd04 Marked ${expiredJobIds.length} expired jobs as inactive`);
+    console.log(`   \ud83d\uddd1\ufe0f Deleted ${expiredJobIds.length} expired jobs`);
     return expiredJobIds.length;
   } catch (err: any) {
-    console.error('   \u274c Exception marking expired jobs:', err.message);
+    console.error('   \u274c Exception deleting expired jobs:', err.message);
     return 0;
   }
 };
@@ -238,8 +238,8 @@ const harvestAndSync = async () => {
       }
 
       if (rawJobs.length === 0) {
-        // If company has zero jobs, mark all existing jobs as inactive
-        const expired = await markExpiredJobs(companyId, []);
+        // If company has zero jobs, delete all existing jobs for it
+        const expired = await deleteExpiredJobs(companyId, []);
         totalExpired += expired;
         continue;
       }
@@ -295,8 +295,8 @@ const harvestAndSync = async () => {
       totalSynced += syncedCount;
       console.log(`   \u2705 Synced ${syncedCount} active jobs`);
 
-      // STEP 2: Mark jobs that are NO LONGER in ATS as inactive
-      const expiredCount = await markExpiredJobs(companyId, activeApplyLinks);
+      // STEP 2: Delete jobs that are NO LONGER on the ATS
+      const expiredCount = await deleteExpiredJobs(companyId, activeApplyLinks);
       totalExpired += expiredCount;
 
       // Rate limiting
@@ -308,24 +308,7 @@ const harvestAndSync = async () => {
     }
   }
 
-  // STEP 3: Optional - Delete very old inactive jobs (older than 30 days)
-  console.log(`\n\ud83e\uddf9 Cleaning up very old inactive jobs...`);
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  const { data: deletedJobs, error: deleteError } = await supabase
-    .from('jobs')
-    .delete()
-    .eq('is_active', false)
-    .lt('updated_at', thirtyDaysAgo.toISOString())
-    .select('id');
-  
-  const deletedCount = deletedJobs?.length || 0;
-  if (deletedCount > 0) {
-    console.log(`   \ud83d\uddd1\ufe0f Deleted ${deletedCount} jobs inactive for >30 days`);
-  } else {
-    console.log(`   \u2705 No old inactive jobs to delete`);
-  }
+
 
   console.log(`\n${'='.repeat(70)}`);
   console.log(`\ud83d\udcca HARVEST SUMMARY`);
@@ -333,8 +316,7 @@ const harvestAndSync = async () => {
   console.log(`   Companies processed: ${INITIAL_COMPANIES.length}`);
   console.log(`   Jobs found on ATS: ${totalFound}`);
   console.log(`   Jobs synced/updated: ${totalSynced}`);
-  console.log(`   Jobs marked expired: ${totalExpired}`);
-  console.log(`   Jobs deleted (>30d old): ${deletedCount}`);
+  console.log(`   Jobs deleted (expired): ${totalExpired}`);
   console.log(`   Jobs failed: ${totalFailed}`);
   console.log(`\n\ud83d\udcc2 Category Distribution:`);
   Object.entries(categoryStats).forEach(([cat, count]) => {
